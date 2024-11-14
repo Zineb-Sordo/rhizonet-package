@@ -18,7 +18,7 @@ def main():
     parser = ArgumentParser(conflict_handler='resolve')
     parser.add_argument("--config_file", type=str,
                         default="./setup_files/setup-unet2d.json",
-                        help="json file contraining data parameters")
+                        help="json file training data parameters")
     parser.add_argument("--device", type=str, default='cpu', choices=['cpu', 'gpu'], help="choose cpu or gpu")
     parser.add_argument("--nodes", type=int, default=1, help="number of gpu or cpu nodes")
     parser.add_argument("--strategy", type=str, default='ddp', help="pytorch strategy")

@@ -97,7 +97,7 @@ def main():
     parser = ArgumentParser(conflict_handler='resolve', description="Patch cropping parameter setting")
     parser.add_argument("--config_file", type=str,
                         default="/Users/zinebsordo/Desktop/berkeleylab/zineb/monai_unet2D/setup_files/setup-prepare.json",
-                        help="json file contraining data parameters")
+                        help="json file training data parameters")
     args = parser.parse_args()
     args = parse_prepare_variables(args)
     crop_training_images(args)

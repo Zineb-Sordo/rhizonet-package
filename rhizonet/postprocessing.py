@@ -85,7 +85,7 @@ def main():
     parser = argparse.ArgumentParser(description='Description of your program')
     parser.add_argument("--config_file", type=str,
                         default="/Users/zinebsordo/Desktop/berkeleylab/zineb/monai_unet2D/setup_files/setup-processing.json",
-                        help="json file contraining data parameters")
+                        help="json file training data parameters")
     parser.add_argument("--gpus", type=int, default=None, help="how many gpus to use")
 
     args = parser.parse_args()
