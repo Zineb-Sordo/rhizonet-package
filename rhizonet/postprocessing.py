@@ -84,7 +84,7 @@ def _parse_training_variables(argparse_args):
 def main():
     parser = argparse.ArgumentParser(description='Description of your program')
     parser.add_argument("--config_file", type=str,
-                        default="/Users/zinebsordo/Desktop/berkeleylab/zineb/monai_unet2D/setup_files/setup-processing.json",
+                        default="../docs/setup_files/setup-processing.json",
                         help="json file training data parameters")
     parser.add_argument("--gpus", type=int, default=None, help="how many gpus to use")
 

@@ -123,7 +123,7 @@ def get_prediction(file, unet, pred_patch_size, pred_path, ecofab):
 def main():
     parser = argparse.ArgumentParser(description='Description of your program')
     parser.add_argument("--config_file", type=str,
-                        default="./setup_files/setup-predict2d.json",
+                        default="../docs/setup_files/setup-predict2d.json",
                         help="json file training data parameters")
     parser.add_argument("--gpus", type=int, default=None, help="how many gpus to use")
     args = parser.parse_args()

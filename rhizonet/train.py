@@ -17,7 +17,7 @@ from pytorch_lightning.loggers import NeptuneLogger
 def main():
     parser = ArgumentParser(conflict_handler='resolve')
     parser.add_argument("--config_file", type=str,
-                        default="./setup_files/setup-unet2d.json",
+                        default="../docs/setup_files/setup-unet2d.json",
                         help="json file training data parameters")
     parser.add_argument("--device", type=str, default='cpu', choices=['cpu', 'gpu'], help="choose cpu or gpu")
     parser.add_argument("--nodes", type=int, default=1, help="number of gpu or cpu nodes")
