@@ -1,0 +1,6 @@
+{
+  "model_path": "/Users/zinebsordo/Library/CloudStorage/GoogleDrive-zsordo@lbl.gov/.shortcut-targets-by-id/1Rdned-8OycQXP4lLMGksuOTsUFY2V20O/eyecopod/colab_tutorial_rhizonet/rhizonet_data/model_weights/model_64.ckpt",
+  "pred_data_dir": "/Users/zinebsordo/Library/CloudStorage/GoogleDrive-zsordo@lbl.gov/.shortcut-targets-by-id/17Vyo97lmIfp16T4W_8sP2BxbEIBquVBE/Ring Trial scans/Reformat",
+  "pred_patch_size": [64, 64],
+  "pred_path": "/Users/zinebsordo/Desktop/berkeleylab/data/timeseries_data/reformat/predictions"
+}
