@@ -55,6 +55,8 @@ from monai.transforms import (
     ScaleIntensityRange,
     EnsureType
 )
+
+
 class tiff_reader(MapTransform):
     def __init__(self, image_col=None, keys=["image", "label"], *args, **kwargs):
         super().__init__(self, keys, *args, **kwargs)
