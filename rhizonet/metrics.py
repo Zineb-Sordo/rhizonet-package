@@ -53,8 +53,8 @@ def main(pred_path, label_path, log_dir):
     with open(os.path.join(log_dir, 'metrics.json'), 'w') as f:
         json.dump(dict_metrics, f)
             
-if __name__ == '__main__':
-    pred_path = "/home/zsordo/rhizonet-fovea/results/training_patches64_ex7ex9_batch32_dropout40/predictions/"
-    label_path = "/home/zsordo/rhizonet-fovea/data/test_data/labels/"
-    log_dir = "/home/zsordo/rhizonet-fovea/results/training_patches64_ex7ex9_batch32_dropout40"
-    main(pred_path, label_path, log_dir)
+# if __name__ == '__main__':
+#     pred_path = ".results/training_patches64_ex7ex9_batch32_dropout40/predictions/"
+#     label_path = "/home/zsordo/datasets/test_data/labels/"
+#     log_dir = "/home/zsordo/rhizonet-fovea/results/training_patches64_ex7ex9_batch32_dropout40"
+#     main(pred_path, label_path, log_dir)

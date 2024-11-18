@@ -45,9 +45,9 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
     cropped_image = img[..., min_row:max_row, min_col:max_col]
     # Create a new image with the cropped content
     new_image = np.zeros_like(cropped_image)
-    new_image[..., filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_image[:,
+    new_image[..., filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_image[...,
         filled_largest_component_mask[min_row:max_row, min_col:max_col]]
-    
+    print(new_image.shape, "new_image")
     if lab is not None:
         cropped_label = lab[..., min_row:max_row, min_col:max_col]
         new_label = np.zeros_like(cropped_label)
