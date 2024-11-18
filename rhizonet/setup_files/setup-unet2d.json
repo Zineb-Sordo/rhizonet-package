@@ -17,7 +17,7 @@
 
     "lr": 3e-4,
     "num_workers": 32,
-    "nb_epochs": 10
+    "nb_epochs": 1
   },
   "dataset_params": {
     "input_channels": 3,
