@@ -8,14 +8,8 @@ from skimage import exposure
 from skimage import io, filters, measure
 from scipy import ndimage as ndi
 
-def extract_largest_component_bbox_image(img, lab=None, predict=False):
-    # Load and preprocess the image
-    if predict:
-        img = img.cpu().numpy()
-        image = img[0, 2, ...]
-    else:
-        image = img[2, :, :]
-    
+
+def get_lcc(image):
     image = ndi.gaussian_filter(image, sigma=2)
 
     # Threshold the image
@@ -38,6 +32,20 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
     # Fill all holes in the largest connected component
     filled_largest_component_mask = ndi.binary_fill_holes(largest_component_mask)
 
+    return filled_largest_component_mask, largest_component
+
+
+def extract_largest_component_bbox_image(img, lab=None, predict=False):
+    # Load and preprocess the image
+    if predict:
+        img = img.cpu().numpy()
+        image = img[0, 2, ...]
+    else:
+        image = img[2, :, :]
+    
+    # Get the largest connected component
+    filled_largest_component_mask, largest_component = get_lcc(image)
+
     # Get the bounding box of the largest connected component
     min_row, min_col, max_row, max_col = largest_component.bbox
 
@@ -45,9 +53,6 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
     cropped_image = img[..., min_row:max_row, min_col:max_col]
     # Create a new image with the cropped content
     new_image = np.zeros_like(cropped_image)
-    new_image[..., filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_image[...,
-        filled_largest_component_mask[min_row:max_row, min_col:max_col]]
-    print(new_image.shape, "new_image")
     if lab is not None:
         cropped_label = lab[..., min_row:max_row, min_col:max_col]
         new_label = np.zeros_like(cropped_label)
@@ -56,8 +61,13 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
         return new_image, new_label
     else:
         if predict:
+            # Applying the mask without cropping out the ROI 
+            new_image[..., min_row:max_row, min_col:max_col] = cropped_image * filled_largest_component_mask[min_row:max_row, min_col:max_col]
             return torch.Tensor(new_image).to('cuda')
         else:
+            # Final image/ROI is cropped by applying a boolean mask
+            new_image[..., filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_image[...,
+            filled_largest_component_mask[min_row:max_row, min_col:max_col]]
             return new_image
         
 

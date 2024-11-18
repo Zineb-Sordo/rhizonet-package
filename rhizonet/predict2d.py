@@ -26,7 +26,7 @@ from monai.transforms import (
     EnsureType
 )
 
-from utils import transform_pred_to_annot, createBinaryAnnotation
+from utils import transform_pred_to_annot, createBinaryAnnotation, extract_largest_component_bbox_image
 from PIL import ImageDraw
 import torchvision.transforms.functional as TF
 from datetime import datetime
@@ -67,7 +67,7 @@ def pred_function(image, model, pred_patch_size):
 
 def predict_step(image_path, model, pred_patch_size):
     image, img_path = transform_image(image_path)
-    cropped_image = extract_largest_component_bbox_image(image)
+    cropped_image = extract_largest_component_bbox_image(image, predict=True)
     logits = pred_function(cropped_image, model, pred_patch_size)
     pred = torch.argmax(logits, dim=1).byte().squeeze(dim=1)
     pred = (pred * 255).byte()
@@ -91,48 +91,6 @@ def elliptical_crop(img, center_x, center_y, width, height):
     cropped_image = TF.to_pil_image(torch.mul(TF.to_tensor(image), mask_tensor))
 
     return image, np.array(cropped_image)
-
-
-def extract_largest_component_bbox_image(img):
-    # Load and preprocess the image
-
-    image = img[0, 2, :, :]
-    image = ndi.gaussian_filter(image, sigma=2)
-    # Threshold the image
-    threshold = filters.threshold_isodata(image)
-    binary_image = image < threshold
-
-    # Label connected components
-    label_image = measure.label(binary_image)
-
-    # Measure properties of the connected components
-    props = measure.regionprops(label_image)
-
-    # Find the largest connected component by area
-    if props:
-        largest_component = max(props, key=lambda x: x.area)
-        largest_component_mask = label_image == largest_component.label
-    else:
-        largest_component_mask = np.zeros_like(binary_image, dtype=bool)
-
-    # Fill all holes in the largest connected component
-    filled_largest_component_mask = ndi.binary_fill_holes(largest_component_mask)
-
-    # Get the bounding box of the largest connected component
-    min_row, min_col, max_row, max_col = largest_component.bbox
-
-    # Crop the ORIGINAL image to the bounding box dimensions
-    cropped_image = img[:, :, min_row:max_row, min_col:max_col]
-
-    # Create a new image with the cropped content
-    new_image = np.zeros_like(img)
-
-    # new_image[:, :, filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_image[:, :,
-    #     filled_largest_component_mask[min_row:max_row, min_col:max_col]]
-
-    # Using the following code if we want to keep the same shape as the 
-    new_image[:, :, min_row:max_row, min_col:max_col] = cropped_image * filled_largest_component_mask[min_row:max_row, min_col:max_col]
-    return torch.tensor(new_image)
 
     
 def get_biomass(binary_img):
