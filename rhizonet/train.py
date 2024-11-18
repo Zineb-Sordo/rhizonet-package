@@ -156,13 +156,16 @@ def train_model(args):
     """
 
 if __name__ == "__main__":
+
     parser = ArgumentParser(conflict_handler='resolve')
     parser.add_argument("--config_file", type=str,
                         default="./setup_files/setup-unet2d.json",
-                        help="json file contraining data parameters")
+                        help="json file training data parameters")
     parser.add_argument("--gpus", type=int, default=1, help="how many gpus to use")
     parser.add_argument("--strategy", type=str, default='ddp', help="pytorch strategy")
     parser.add_argument("--accelerator", type=str, default='gpu', help="cpu or gpu accelerator")
+
     args = parser.parse_args()
+
     train_model(args)
 
