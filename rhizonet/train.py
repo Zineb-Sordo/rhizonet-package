@@ -100,8 +100,8 @@ def train_model(args):
         log_every_n_steps=1,
         enable_checkpointing=True,
         logger=wandb_logger,
-        accelerator=args['device'],
-        devices=args['nodes'],
+        accelerator=args['accelerator'],
+        devices=args['gpus'],
         strategy=args['strategy'],
         num_sanity_val_steps=0,
         max_epochs=model_params['nb_epochs']
