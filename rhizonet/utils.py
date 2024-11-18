@@ -41,7 +41,7 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
         img = img.cpu().numpy()
         image = img[0, 2, ...]
     else:
-        image = img[2, :, :]
+        image = img[2, ...]
     
     # Get the largest connected component
     filled_largest_component_mask, largest_component = get_lcc(image)
@@ -51,8 +51,7 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
 
     # Crop the ORIGINAL image to the bounding box dimensions
     cropped_image = img[..., min_row:max_row, min_col:max_col]
-    # Create a new image with the cropped content
-    new_image = np.zeros_like(cropped_image)
+
     if lab is not None:
         cropped_label = lab[..., min_row:max_row, min_col:max_col]
         new_label = np.zeros_like(cropped_label)
@@ -61,10 +60,15 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
         return new_image, new_label
     else:
         if predict:
+            # Create a new image with the cropped content but keeping input image shape
+            new_image = np.zeros_like(img)
             # Applying the mask without cropping out the ROI 
             new_image[..., min_row:max_row, min_col:max_col] = cropped_image * filled_largest_component_mask[min_row:max_row, min_col:max_col]
             return torch.Tensor(new_image).to('cuda')
         else:
+            # Create a new image with the cropped content
+            new_image = np.zeros_like(cropped_image)
+
             # Final image/ROI is cropped by applying a boolean mask
             new_image[..., filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_image[...,
             filled_largest_component_mask[min_row:max_row, min_col:max_col]]
