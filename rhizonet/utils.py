@@ -44,7 +44,6 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
         image = img[2, ...]
     
     # Get the largest connected component
-    print(image.shape)
     filled_largest_component_mask, largest_component = get_lcc(image)
 
     # Get the bounding box of the largest connected component
