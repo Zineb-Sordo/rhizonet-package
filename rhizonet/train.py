@@ -15,6 +15,9 @@ from monai.data import list_data_collate
 from lightning.pytorch.loggers import WandbLogger 
 from utils import transform_pred_to_annot, createBinaryAnnotation
 
+import metrics
+
+
 def _parse_training_variables(argparse_args):
     """ Merges parameters from json config file and argparse, then parses/modifies parameters a bit"""
     args = vars(argparse_args)
@@ -139,6 +142,10 @@ def train_model(args):
         binary_mask = createBinaryAnnotation(pred).squeeze().astype(np.uint8)
         io.imsave(os.path.join(pred_path, fname), binary_mask, check_contrast=False)
 
+
+    # Evaluate metrics on full size test images using metrics.py 
+    metrics.main(pred_path, pred_lab_path, log_dir)
+        
 
     """Example 1: 
 

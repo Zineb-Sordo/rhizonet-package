@@ -5,14 +5,15 @@ import json
 import re
 from tqdm import tqdm
 from argparse import ArgumentParser
-from skimage import io, util, color
+from skimage import io, util, color, filters, exposure, measure
 from PIL import Image
 import numpy as np
 import pytorch_lightning as pl
 import torch
 import torchmetrics
 import matplotlib.pyplot as plt
-
+from scipy import ndimage as ndi
+from skimage.color import rgb2lab
 from unet2D import Unet2D
 
 from unet2D import PredDataset2D, ImageDataset, tiff_reader
@@ -25,10 +26,24 @@ from monai.transforms import (
     EnsureType
 )
 
-from utils import transform_pred_to_annot
+from utils import transform_pred_to_annot, createBinaryAnnotation
 from PIL import ImageDraw
 import torchvision.transforms.functional as TF
 from datetime import datetime
+
+
+def _parse_training_variables(argparse_args):
+    """ Merges parameters from json config file and argparse, then parses/modifies parameters a bit"""
+    args = vars(argparse_args)
+    # overwrite argparse defaults with config file
+    with open(args["config_file"]) as file_json:
+        config_dict = json.load(file_json)
+        args.update(config_dict)
+    args['pred_patch_size'] = tuple(args['pred_patch_size']) # tuple expected, not list
+    if args['gpus'] is None:
+        args['gpus'] = -1 if torch.cuda.is_available() else 0
+
+    return args
 
 
 def transform_image(img_path):
@@ -41,7 +56,7 @@ def transform_image(img_path):
             EnsureType()
         ]
     )
-    img = np.array(Image.open(img_path))
+    img = np.array(Image.open(img_path))[...,:3]
     img = transform(np.transpose(img, (2, 0, 1)))
     return (img, img_path)
 
@@ -52,18 +67,11 @@ def pred_function(image, model, pred_patch_size):
 
 def predict_step(image_path, model, pred_patch_size):
     image, img_path = transform_image(image_path)
-    logits = pred_function(image, model, pred_patch_size)
+    cropped_image = extract_largest_component_bbox_image(image)
+    logits = pred_function(cropped_image, model, pred_patch_size)
     pred = torch.argmax(logits, dim=1).byte().squeeze(dim=1)
     pred = (pred * 255).byte()
     return pred
-
-
-def predict_timeseries(unet, file, pred_patch_size):
-    prediction = predict_step(file, unet, pred_patch_size)[0, :, :]
-    pred = transform_pred_to_annot(prediction.numpy().squeeze().astype(np.uint8))
-    raw = np.array(Image.open(file))
-    date = file.split("/")[-1].split('_')[2] #hardcoding
-    return pred, raw, date
 
 
 def elliptical_crop(img, center_x, center_y, width, height):
@@ -85,14 +93,48 @@ def elliptical_crop(img, center_x, center_y, width, height):
     return image, np.array(cropped_image)
 
 
-def createBinaryAnnotation(img):
-    '''Find all the annotations that are root, then NOT root, then combine'''
-    u = np.unique(img)
-    bkg = np.zeros(img.shape)  # background
-    frg = (img == u[2]).astype(int) * 255
-    return bkg + frg
+def extract_largest_component_bbox_image(img):
+    # Load and preprocess the image
 
+    image = img[0, 2, :, :]
+    image = ndi.gaussian_filter(image, sigma=2)
+    # Threshold the image
+    threshold = filters.threshold_isodata(image)
+    binary_image = image < threshold
 
+    # Label connected components
+    label_image = measure.label(binary_image)
+
+    # Measure properties of the connected components
+    props = measure.regionprops(label_image)
+
+    # Find the largest connected component by area
+    if props:
+        largest_component = max(props, key=lambda x: x.area)
+        largest_component_mask = label_image == largest_component.label
+    else:
+        largest_component_mask = np.zeros_like(binary_image, dtype=bool)
+
+    # Fill all holes in the largest connected component
+    filled_largest_component_mask = ndi.binary_fill_holes(largest_component_mask)
+
+    # Get the bounding box of the largest connected component
+    min_row, min_col, max_row, max_col = largest_component.bbox
+
+    # Crop the ORIGINAL image to the bounding box dimensions
+    cropped_image = img[:, :, min_row:max_row, min_col:max_col]
+
+    # Create a new image with the cropped content
+    new_image = np.zeros_like(img)
+
+    # new_image[:, :, filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_image[:, :,
+    #     filled_largest_component_mask[min_row:max_row, min_col:max_col]]
+
+    # Using the following code if we want to keep the same shape as the 
+    new_image[:, :, min_row:max_row, min_col:max_col] = cropped_image * filled_largest_component_mask[min_row:max_row, min_col:max_col]
+    return torch.tensor(new_image)
+
+    
 def get_biomass(binary_img):
     roi = binary_img > 0
     nerror = 0
@@ -112,78 +154,45 @@ This following function can be used to output comparison plots between the predi
 and the raw image instead of just the prediction 
 '''
 
-
-def get_prediction(file, unet, pred_patch_size, pred_path, ecofab):
+def get_prediction(file, unet, pred_patch_size, pred_path):
     prediction = predict_step(file, unet, pred_patch_size)[0, :, :]
     pred = transform_pred_to_annot(prediction.numpy().squeeze().astype(np.uint8))
-    pred_img, mask = elliptical_crop(pred, 1000, 1500, width=1400, height=2240)
-    binary_mask = createBinaryAnnotation(mask).astype(np.uint8)
-    io.imsave(os.path.join(pred_path, file.split(ecofab + '/')[1][:-4] + ".png"), binary_mask, check_contrast=False)
+    # pred_img, mask = elliptical_crop(pred, 1000, 1500, width=1400, height=2240)
+    binary_mask = createBinaryAnnotation(pred).astype(np.uint8)
+    io.imsave(os.path.join(pred_path, os.path.basename(file).split('.')[0] + ".png"), binary_mask, check_contrast=False)
+
 
 def main():
     parser = argparse.ArgumentParser(description='Description of your program')
     parser.add_argument("--config_file", type=str,
-                        default="../docs/setup_files/setup-predict2d.json",
-                        help="json file training data parameters")
+                        default="setup_files/setup-predict2d.json",
+                        help="json file contraining data parameters")
     parser.add_argument("--gpus", type=int, default=None, help="how many gpus to use")
     args = parser.parse_args()
-
     args = _parse_training_variables(args)
-    for filename in tqdm(sorted(os.listdir(args['pred_data_dir']))):
-        if filename.startswith("YY"):
-            pattern = r'EF(\d+)[A-Z]'
-            match = re.search(pattern, filename)
-            if match:
-                ecofolder = match.group()
-            else:
-                return None
+    
+    pred_data_dir = args['pred_data_dir']
+    pred_path = args['pred_path']
+    
+    # Looping through all ecofab folders in the pred_data_dir directory
+    for ecofab in sorted(os.listdir(pred_data_dir)):
+        if not ecofab.startswith("."):
 
-            pred_path = os.path.join(args['pred_path'], ecofolder)
-
-            if not os.path.exists(pred_path):
-                os.makedirs(pred_path)
-
+            print("Predicting for {}".format(ecofab))
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             unet = Unet2D.load_from_checkpoint(args['model_path']).to(device)
             unet.eval()
 
-            file_path = os.path.join(args['pred_data_dir'], filename)
-            get_prediction(file_path, unet, args['pred_patch_size'], pred_path, ecofolder)
-
-    # # Looping through all ecofab folders in the pred_data_dir directory
-    # for ecofolder in sorted(os.listdir(args['pred_data_dir'])):
-    #     if ecofolder.startswith("eco"):
-    #         print("Predicting for {}".format(ecofolder))
-    #
-    #         pred_data_dir = os.path.join(args['pred_data_dir'], ecofolder)
-    #         pred_path = os.path.join(args['pred_path'], ecofolder)
-    #
-    #         if not os.path.exists(pred_path):
-    #             os.makedirs(pred_path)
-    #
-    #         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #         unet = Unet2D.load_from_checkpoint(args['model_path']).to(device)
-    #         unet.eval()
-    #
-    #         lst_files = sorted(os.listdir(pred_data_dir))
-    #         for file in tqdm(lst_files):
-    #             if not file.startswith("."):
-    #                 file_path = os.path.join(pred_data_dir, file)
-    #                 get_prediction(file_path, unet, args['pred_patch_size'], pred_path, ecofolder)
-
-
-def _parse_training_variables(argparse_args):
-    """ Merges parameters from json config file and argparse, then parses/modifies parameters a bit"""
-    args = vars(argparse_args)
-    # overwrite argparse defaults with config file
-    with open(args["config_file"]) as file_json:
-        config_dict = json.load(file_json)
-        args.update(config_dict)
-    args['pred_patch_size'] = tuple(args['pred_patch_size']) # tuple expected, not list
-    if args['gpus'] is None:
-        args['gpus'] = -1 if torch.cuda.is_available() else 0
-
-    return args
+            if os.path.isdir(os.path.join(pred_data_dir, ecofab)): #if you have a timeseries of one ecofab 
+                os.makedirs(os.path.join(pred_path, ecofab), exist_ok=True)
+                lst_files = sorted(os.listdir(os.path.join(pred_data_dir, ecofab)))
+                for file in tqdm(lst_files):
+                    if not file.startswith("."):
+                        file_path = os.path.join(pred_data_dir, ecofab, file)
+                        get_prediction(file_path, unet, args['pred_patch_size'], os.path.join(pred_path, ecofab))
+            else:
+                file_path = os.path.join(pred_data_dir, ecofab)
+                get_prediction(file_path, unet, args['pred_patch_size'], pred_path)
 
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@
   "model_params":
   {
     "data_dir": "/home/zsordo/datasets/data/patches64_dilated",
-    "pred_data_dir": "/home/zsordo/datasets/data/test_data",
+    "pred_data_dir": "/home/zsordo/datasets/test_data",
     "log_dir": "./results/training_resnet_patches64",
     "input_channels": 3,
     "pred_patch_size": [
