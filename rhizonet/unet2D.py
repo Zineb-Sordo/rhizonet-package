@@ -381,7 +381,8 @@ class Unet2D(pl.LightningModule):
         if not self.has_executed:
             dummy_input = torch.rand((1, 3, 64, 64)) #hardencoding for patches 64
             make_dot(self(dummy_input), params=dict(self.named_parameters())).render('network_graph', format='png')
-            self.logger.experiment["model_visualization"].append(neptune.types.File("network_graph.png"))
+            # self.logger.experiment["model_visualization"].append(neptune.types.File("network_graph.png")) # For Neptune Logger 
+            self.logger.log_image(key="model_visualization", images=["network_graph.png"]) # Wandb Logger
             self.has_executed = True
         return loss
 
@@ -405,7 +406,8 @@ class Unet2D(pl.LightningModule):
             gridx = torchvision.utils.make_grid(x, nrow=5)
 
             # Convert the grid to a PIL image
-            self.logger.experiment["training_imgs"].append(to_pil(gridx))
+            # self.logger.experiment["training_imgs"].append(to_pil(gridx))
+            self.logger.log_image(key="training_img", images=[to_pil(gridx)]) # Wandb Logger
 
             # Repeat the process for gridy if needed
             preds = torch.argmax(y, dim=1).byte().squeeze(1)
@@ -413,8 +415,8 @@ class Unet2D(pl.LightningModule):
             y = transform_pred_to_annot(preds)
 
             gridy = torchvision.utils.make_grid(y.view(y.shape[0], 1, y.shape[1], y.shape[2]), nrow=5)
-            self.logger.experiment["prediction_imgs"].append(to_pil(gridy))
-
+            # self.logger.experiment["prediction_imgs"].append(to_pil(gridy))
+            self.logger.log_image(key="prediction_imgs", images=[to_pil(gridy)]) # Wandb Logger
         if torch.cuda.is_available():
             self.cnfmat(labeled_logits, labels[labeled_ind])
         else:

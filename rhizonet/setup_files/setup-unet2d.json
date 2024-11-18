@@ -1,9 +1,9 @@
 {
   "model_params":
   {
-    "data_dir": "/Users/zinebsordo/Desktop/berkeleylab/data/image_data/prepare_test",
-    "pred_data_dir": "/Users/zinebsordo/Desktop/berkeleylab/data/image_data/pred_test",
-    "log_dir": "/Users/zinebsordo/Desktop/berkeleylab/zineb/monai_unet2D/results/refactor_test",
+    "data_dir": "/home/zsordo/datasets/data/patches64_dilated",
+    "pred_data_dir": "/home/zsordo/datasets/data/test_data",
+    "log_dir": "./results/training_resnet_patches64",
     "input_channels": 3,
     "pred_patch_size": [
       64,
@@ -11,11 +11,16 @@
     ],
     "task": "multiclass",
     "background_index": 0,
+    "num_classes": 3,
+    "model": "resnet",
     "batch_size": 16,
+
     "lr": 3e-4,
     "num_workers": 32,
     "nb_epochs": 10,
-    "num_classes": 3
+    "device": "gpu",
+    "nodes": 2,
+    "strategy": "ddp"
   },
   "dataset_params": {
     "input_channels": 3,

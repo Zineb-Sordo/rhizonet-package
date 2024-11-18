@@ -11,20 +11,31 @@ from skimage import io, color
 from unet2D import Unet2D, ImageDataset, PredDataset2D
 from simpleLogger import mySimpleLogger
 from monai.data import list_data_collate
-from pytorch_lightning.loggers import NeptuneLogger
+from lightning.pytorch.loggers import WandbLogger 
+from utils import transform_pred_to_annot, createBinaryAnnotation
+
+def _parse_training_variables(argparse_args):
+    """ Merges parameters from json config file and argparse, then parses/modifies parameters a bit"""
+    args = vars(argparse_args)
+    # overwrite argparse defaults with config file
+    with open(args["config_file"]) as file_json:
+        config_dict = json.load(file_json)
+        args.update(config_dict)
+    dataset_args, model_args = args['dataset_params'], args['model_params']
+    dataset_args['patch_size'] = tuple(dataset_args['patch_size'])  # tuple expected, not list
+    model_args['pred_patch_size'] = tuple(model_args['pred_patch_size'])  # tuple expected, not list
+    return args, dataset_args, model_args
 
 
-def main():
-    parser = ArgumentParser(conflict_handler='resolve')
-    parser.add_argument("--config_file", type=str,
-                        default="../docs/setup_files/setup-unet2d.json",
-                        help="json file training data parameters")
-    parser.add_argument("--device", type=str, default='cpu', choices=['cpu', 'gpu'], help="choose cpu or gpu")
-    parser.add_argument("--nodes", type=int, default=1, help="number of gpu or cpu nodes")
-    parser.add_argument("--strategy", type=str, default='ddp', help="pytorch strategy")
-    parser.add_argument("--neptune_project", type=str, default="zsordo/Rhizonet", help="project name for Neptune Logger")
-    parser.add_argument("--neptune_api", type=str, default="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI5OTVlOGY4ZC05MmNjLTRiNTItOTU0Yy0wMzUxN2UyNDk4NmMifQ==", help="API key for Neptune Logger")
-    args = parser.parse_args()
+def train_model(args):
+    """
+    Train RhizoNet on a given dataset
+
+    Args:
+        model_config (json filepath): Configuration of the model in a json file 
+
+    
+    """
 
     # get vars from JSON files
     args, dataset_params, model_params = _parse_training_variables(args)
@@ -61,11 +72,8 @@ def main():
     # my_logger = mySimpleLogger(log_dir=log_dir,
     #                            keys=['val_acc', 'val_prec', 'val_recall', 'val_iou'])
 
-    neptune_logger = NeptuneLogger(
-        project=args['neptune_project'],
-        api_key=args['neptune_api'],
-        log_model_checkpoints=False,
-    )
+    wandb_logger = WandbLogger(log_model="all",
+                               project="rhizonet")
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         dirpath=log_dir,
@@ -89,10 +97,10 @@ def main():
         callbacks=[checkpoint_callback, lr_monitor, stopping_callback],
         log_every_n_steps=1,
         enable_checkpointing=True,
-        logger=neptune_logger,
-        accelerator=args['device'],
-        devices=args['nodes'],
-        strategy=args['strategy'],
+        logger=wandb_logger,
+        accelerator=model_params['device'],
+        devices=model_params['nodes'],
+        strategy=model_params['strategy'],
         num_sanity_val_steps=0,
         max_epochs=model_params['nb_epochs']
     )
@@ -107,19 +115,41 @@ def main():
         persistent_workers=True, pin_memory=torch.cuda.is_available())
     trainer.test(unet, test_loader, ckpt_path='best', verbose=True)
 
+    # predict and save
+    pred_img_path = os.path.join(model_params['pred_data_dir'], "images")
+    pred_lab_path = os.path.join(model_params['pred_data_dir'], "labels")
+    predict_dataset = PredDataset2D(pred_img_path, dataset_params)
+    predict_loader = torch.utils.data.DataLoader(
+        predict_dataset, batch_size=1, shuffle=False,
+        collate_fn=list_data_collate, num_workers=model_params["num_workers"],
+        persistent_workers=True, pin_memory=torch.cuda.is_available())
+    
+    predictions = trainer.predict(unet, predict_loader)
+    # save predictions
+    pred_path = os.path.join(log_dir, 'predictions')
+    if not os.path.exists(pred_path):
+        os.makedirs(pred_path)
+    for (pred, _, fname) in predictions:
+        pred = transform_pred_to_annot(pred.numpy().squeeze().astype(np.uint8))
+        fname = os.path.basename(fname[0]).replace('tif', 'png')
+        # pred_img, mask = elliptical_crop(pred, 1000, 1500, width=1400, height=2240)
+        # binary_mask = createBinaryAnnotation(pred).numpy().squeeze().astype(np.uint8)
+        binary_mask = createBinaryAnnotation(pred).squeeze().astype(np.uint8)
+        io.imsave(os.path.join(pred_path, fname), binary_mask, check_contrast=False)
 
-def _parse_training_variables(argparse_args):
-    """ Merges parameters from json config file and argparse, then parses/modifies parameters a bit"""
-    args = vars(argparse_args)
-    # overwrite argparse defaults with config file
-    with open(args["config_file"]) as file_json:
-        config_dict = json.load(file_json)
-        args.update(config_dict)
-    dataset_args, model_args = args['dataset_params'], args['model_params']
-    dataset_args['patch_size'] = tuple(dataset_args['patch_size'])  # tuple expected, not list
-    model_args['pred_patch_size'] = tuple(model_args['pred_patch_size'])  # tuple expected, not list
-    return args, dataset_args, model_args
+
+    """Example 1: 
+
+    from rhizonet.train import train_model
+
+    args = {
+        "config_file": "configs/setup-unet2d.json",
+    }
+    
+    train_model(args) 
+
+    Return: None
+    Saves model_path and predictions in save_path directory 
+    """
 
 
-if __name__ == "__main__":
-    main()
