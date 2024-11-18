@@ -17,10 +17,7 @@
 
     "lr": 3e-4,
     "num_workers": 32,
-    "nb_epochs": 10,
-    "device": "gpu",
-    "nodes": 2,
-    "strategy": "ddp"
+    "nb_epochs": 10
   },
   "dataset_params": {
     "input_channels": 3,

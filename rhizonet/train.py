@@ -38,6 +38,7 @@ def train_model(args):
     
     """
 
+
     # get vars from JSON files
     args, dataset_params, model_params = _parse_training_variables(args)
     data_dir, log_dir = model_params['data_dir'], model_params['log_dir']
@@ -159,6 +160,9 @@ if __name__ == "__main__":
     parser.add_argument("--config_file", type=str,
                         default="./setup_files/setup-unet2d.json",
                         help="json file contraining data parameters")
+    parser.add_argument("--gpus", type=int, default=1, help="how many gpus to use")
+    parser.add_argument("--strategy", type=str, default='ddp', help="pytorch strategy")
+    parser.add_argument("--accelerator", type=str, default='gpu', help="cpu or gpu accelerator")
     args = parser.parse_args()
     train_model(args)
 
