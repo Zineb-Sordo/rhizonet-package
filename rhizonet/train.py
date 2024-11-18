@@ -7,6 +7,7 @@ import torch
 import glob
 import pytorch_lightning as pl
 from skimage import io, color
+from argparse import Namespace
 
 from unet2D import Unet2D, ImageDataset, PredDataset2D
 from simpleLogger import mySimpleLogger
@@ -143,13 +144,21 @@ def train_model(args):
     from rhizonet.train import train_model
 
     args = {
-        "config_file": "configs/setup-unet2d.json",
+        "config_file": "./setup-files/setup-unet2d.json",
     }
     
     train_model(args) 
 
     Return: None
-    Saves model_path and predictions in save_path directory 
+    Saves model_path and predictions in save_path directory --> ISSUE CANNOT RUN DDP AND 2 NODES training intervactive needs script training 
+
     """
 
+if __name__ == "__main__":
+    parser = ArgumentParser(conflict_handler='resolve')
+    parser.add_argument("--config_file", type=str,
+                        default="./setup_files/setup-unet2d.json",
+                        help="json file contraining data parameters")
+    args = parser.parse_args()
+    train_model(args)
 
