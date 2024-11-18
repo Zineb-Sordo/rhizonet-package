@@ -20,7 +20,6 @@ from unet2D import PredDataset2D, ImageDataset, tiff_reader
 from monai.data import ArrayDataset, create_test_image_2d, list_data_collate, decollate_batch
 from monai.inferers import sliding_window_inference
 from monai.transforms import (
-    AddChannel,
     Compose,
     ScaleIntensityRange,
     EnsureType
@@ -49,7 +48,6 @@ def _parse_training_variables(argparse_args):
 def transform_image(img_path):
     transform = Compose(
         [
-            AddChannel(),
             ScaleIntensityRange(a_min=0, a_max=255,
                                 b_min=0.0, b_max=1.0, clip=True,
                                 ),
