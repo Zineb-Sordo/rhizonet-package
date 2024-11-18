@@ -11,6 +11,17 @@ from skimage.morphology import (erosion, dilation, closing, opening,
 from skimage.measure import label
 from skimage.morphology import convex_hull_image, disk
 
+def _parse_training_variables(argparse_args):
+    """ Merges parameters from json config file and argparse, then parses/modifies parameters a bit"""
+    args = vars(argparse_args)
+    # overwrite argparse defaults with config file
+    with open(args["config_file"]) as file_json:
+        config_dict = json.load(file_json)
+        args.update(config_dict)
+    if args['gpus'] is None:
+        args['gpus'] = -1 if torch.cuda.is_available() else 0
+
+    return args
 
 def getLargestCC(segments):
     '''Return a mask corresponding to the largest object'''
@@ -27,72 +38,72 @@ def maxProjection(limg, ndown=1):
     return IM_MAX
 
 
-def get_hull_mask(data_path, output_path, area_opening_param=500, area_closing_param=200, disk_radius=4):
+def processing(data_path, output_path, area_opening_param=500, area_closing_param=200, disk_radius=4):
     element = disk(disk_radius)
 
-    for e in tqdm(sorted([e for e in os.listdir(data_path) if not e.startswith(".DS_Store")])):
-        print("Processing ecofab {}".format(e))
+    for e in tqdm(sorted([e for e in os.listdir(data_path) if not e.startswith(".")])):
+        print("Processing {}".format(e))
 
         pred_data = os.path.join(data_path, e)
         pred_chull_dir = os.path.join(output_path, e)
 
-        if not os.path.exists(pred_chull_dir):
-            os.makedirs(pred_chull_dir)
+        if os.path.isdir(pred_data):
+            os.makedirs(pred_chull_dir, exist_ok=True)
 
-        # Get hull convex shape of overlapped images for one ecofolder
-        lst_img = []
-        for file in sorted([e for e in os.listdir(pred_data) if not e.startswith(".")]):
-            path = os.path.join(pred_data, file)
-            img = io.imread(path)
-            lst_img.append(img)
-        proj_img = maxProjection(lst_img)
-
+            # Get hull convex shape of overlapped images for one ecofolder
+            lst_img = []
+            for file in sorted([e for e in os.listdir(pred_data) if not e.startswith(".")]):
+                path = os.path.join(pred_data, file)
+                img = io.imread(path)
+                lst_img.append(img)
+            proj_img = maxProjection(lst_img)
+        else:
+            os.makedirs(output_path, exist_ok=True)
+            img = io.imread(pred_data)
+            proj_img = maxProjection([img])
+            
         # apply morphological dilation
         dilated_img = dilation(proj_img, element)
 
         lcomponent = getLargestCC(dilated_img)
         chull = convex_hull_image(lcomponent)
 
-        for j, file in enumerate(sorted([e for e in os.listdir(pred_data) if not e.startswith(".")])):
-            path = os.path.join(pred_data, file)
-            img = io.imread(path)
+        if os.path.isdir(pred_data): #if you have a timeseries of one ecofab 
 
+            for j, file in enumerate(sorted([e for e in os.listdir(pred_data) if not e.startswith(".")])):
+                path = os.path.join(pred_data, file)
+                img = io.imread(path)
+    
+                result = np.zeros_like(img)
+                result[chull == 1] = img[chull == 1]
+    
+                # apply morphological operations (area opening on area closing)
+                pred = area_opening(area_closing(result, area_closing_param), area_opening_param)
+    
+                # apply additional erosion to obtain thinner roots
+                pred_eroded = erosion(pred, disk(2))
+                io.imsave(os.path.join(pred_chull_dir, file), pred_eroded, check_contrast=False)
+                
+        else: # if you have one image for a given ecofab instead of a timeseries
             result = np.zeros_like(img)
             result[chull == 1] = img[chull == 1]
 
             # apply morphological operations (area opening on area closing)
             pred = area_opening(area_closing(result, area_closing_param), area_opening_param)
-
             # apply additional erosion to obtain thinner roots
             pred_eroded = erosion(pred, disk(2))
-            io.imsave(os.path.join(pred_chull_dir, file), pred_eroded, check_contrast=False)
+            io.imsave(pred_chull_dir, pred_eroded, check_contrast=False)
 
 
-def _parse_training_variables(argparse_args):
-    """ Merges parameters from json config file and argparse, then parses/modifies parameters a bit"""
-    args = vars(argparse_args)
-    # overwrite argparse defaults with config file
-    with open(args["config_file"]) as file_json:
-        config_dict = json.load(file_json)
-        args.update(config_dict)
-    if args['gpus'] is None:
-        args['gpus'] = -1 if torch.cuda.is_available() else 0
 
-    return args
-
-
-def main():
-    parser = argparse.ArgumentParser(description='Description of your program')
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(conflict_handler='resolve', description="Arguments for applying Convx Hull post processing to a set of binary masks")
     parser.add_argument("--config_file", type=str,
-                        default="../docs/setup_files/setup-processing.json",
+                        default="./setup_files/setup-processing.json",
                         help="json file training data parameters")
     parser.add_argument("--gpus", type=int, default=None, help="how many gpus to use")
 
     args = parser.parse_args()
     args = _parse_training_variables(args)
 
-    get_hull_mask(args['data_path'], args['output_path'], args['area_opening'], args['area_closing'],args['disk_radius'])
-
-
-if __name__ == '__main__':
-    main()
+    processing(args['data_path'], args['output_path'], args['area_opening'], args['area_closing'],args['disk_radius'])

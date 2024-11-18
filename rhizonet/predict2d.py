@@ -162,15 +162,7 @@ def get_prediction(file, unet, pred_patch_size, pred_path):
     io.imsave(os.path.join(pred_path, os.path.basename(file).split('.')[0] + ".png"), binary_mask, check_contrast=False)
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Description of your program')
-    parser.add_argument("--config_file", type=str,
-                        default="setup_files/setup-predict2d.json",
-                        help="json file contraining data parameters")
-    parser.add_argument("--gpus", type=int, default=None, help="how many gpus to use")
-    args = parser.parse_args()
-    args = _parse_training_variables(args)
-    
+def predict_model(args):
     pred_data_dir = args['pred_data_dir']
     pred_path = args['pred_path']
     
@@ -196,4 +188,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(conflict_handler='resolve', description='Run inference using trained model')
+    parser.add_argument("--config_file", type=str,
+                        default="setup_files/setup-predict2d.json",
+                        help="json file training data parameters")
+    parser.add_argument("--gpus", type=int, default=None, help="how many gpus to use")
+    args = parser.parse_args()
+    args = _parse_training_variables(args)
+    predict_model(args)
