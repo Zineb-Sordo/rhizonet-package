@@ -112,7 +112,7 @@ and the raw image instead of just the prediction
 
 def get_prediction(file, unet, pred_patch_size, pred_path):
     prediction = predict_step(file, unet, pred_patch_size)[0, :, :]
-    pred = transform_pred_to_annot(prediction.numpy().squeeze().astype(np.uint8))
+    pred = transform_pred_to_annot(prediction.cpu().numpy().squeeze().astype(np.uint8))
     # pred_img, mask = elliptical_crop(pred, 1000, 1500, width=1400, height=2240)
     binary_mask = createBinaryAnnotation(pred).astype(np.uint8)
     io.imsave(os.path.join(pred_path, os.path.basename(file).split('.')[0] + ".png"), binary_mask, check_contrast=False)
