@@ -56,11 +56,10 @@ from monai.transforms import (
     SpatialPadd
 
 )
+
 class tiff_reader(MapTransform):
     """
-
-    This tiff reader takes as input the list of images and labels and applies if needed image contrasting methods
-    The function extract_largest_component_bbox_image_lab can also extract the ROI by removing the non-necessary noisy background
+    Custom TIFF reader to preprocess and apply optional contrast or bounding box extraction.
     """
     def __init__(self, image_col=None, boundingbox=False, dilation=True, disk_dilation=3, keys=["image", "label"], *args, **kwargs):
         super().__init__(self, keys, *args, **kwargs)
@@ -71,7 +70,8 @@ class tiff_reader(MapTransform):
         self.dik_dilation = disk_dilation
 
     def __call__(self, data_dict):
-        # verify that the label correspond to the appropriate raw image
+
+        # Ensure image and label names match
         raw_name = os.path.basename(data_dict['image']).split('.')[0]
         annot_name = os.path.basename(data_dict['label']).split('.')[0].replace("Annotation", "")
         assert raw_name == annot_name
@@ -87,16 +87,12 @@ class tiff_reader(MapTransform):
                     elif self.image_col == 'contrast':
                         data[key] = contrast_img(io.imread(data_dict[key]))
                     else:
-                        # In case there are images with an extra dimension 
                         data[key] = np.transpose(np.array(Image.open(data_dict[key]))[..., :3], (2, 0, 1))
                 elif key == "label":
                     data[key] = io.imread(data_dict[key])
-
-                    # If we want to apply dilation to the annotated images in case the root shows discontinuities 
                     if self.dilation:
                         data[key] = dilation(data['label'], disk(self.disk_dilation))
                     data[key] = np.expand_dims(data[key], axis=0)
-
         if self.boundingbox:
             data['image'], data['label'] = extract_largest_component_bbox_image(img=data['image'], lab=data['label'])
 
@@ -136,24 +132,11 @@ class ImageDataset(Dataset):
         self.amax = amax
         self.transform = self.get_data_transforms(self.training, self.amax, self.boundingbox, self.dilation, self.disk_dilation)
 
-    @staticmethod
-    def add_args(parent_parser):
-        parser = parent_parser.add_argument_group("precrop data")
-        parser.add_argument("--translate_range", type=float, default=0.2,
-                            help="random translation for data augmentation (percent of patch size)")
-        parser.add_argument("--rotate_range", type=float, default=1,
-                            help="random rotation for data augmentation (units of pi)")
-        parser.add_argument("--scale_range", type=float, default=0.1,
-                            help="random scaling for data augmentation (from 0 to 1)")
-        parser.add_argument("--shear_range", type=float, default=0.1,
-                            help="random shear for data augmentation (from 0 to 1)")
-        return parent_parser
-
     def __len__(self):
         return self.Nsamples
 
     def __getitem__(self, idx):
-        if self.prediction:  # return file name in addition to data
+        if self.prediction: 
             return (self.transform(self.data_dicts[idx]), os.path.split(self.data_fnames[idx])[-1])
         else:
             return self.transform(self.data_dicts[idx])
@@ -164,15 +147,7 @@ class ImageDataset(Dataset):
             transform = Compose(
                 [
                     tiff_reader(keys=["image", "label"], image_col=self.image_col, boundingbox=boundingbox, dilation=dilation, disk_dilation=disk_dilation),
-                    # AddChanneld(keys=["label"]),  # shape of label is (3000, 2039) but DEPRECATED for monai 1.3.2
-                    # AsChannelFirstd(keys=["image"]), # shape of raw image is (3000, 2039, 3) RGB becomes (3, 3000, 2039)
-                    # SpatialPadd(keys=["image", "label"], spatial_size=self.target_size),
-#                         CenterSpatialCropd(
-#                             keys=["image", "label"],
-#                             roi_size=(160, 160)
-
-#                         ),
-                        # Resized(keys=["image", "label"], spatial_size=self.target_size, mode=['area', 'nearest']),
+                    Resized(keys=["image", "label"], spatial_size=self.target_size, mode=['area', 'nearest']),
                     ScaleIntensityRanged(
                         keys=["image"], a_min=0, a_max=amax,
                         b_min=0.0, b_max=1.0, clip=True,
@@ -191,16 +166,7 @@ class ImageDataset(Dataset):
             transform = Compose(
                 [
                     tiff_reader(keys=["image", "label"], image_col=self.image_col, boundingbox=boundingbox, dilation=dilation, disk_dilation=disk_dilation),
-                    # AddChanneld(keys=["label"]), # deprecated for monai 1.3.2
-                    # AsChannelFirstd(keys=["image"]),
-                    # shape of raw image is (3000, 2039, 3) RGB becomes (3, 3000, 2039)
-                   
-                    # SpatialPadd(keys=["image", "label"], spatial_size=self.target_size),
-                    # CenterSpatialCropd(
-                    #   keys=["image", "label"],
-                    #   roi_size=(160, 160)
-                    # ),
-                    # Resized(keys=["image", "label"], spatial_size=self.target_size, mode=['area', 'nearest']),
+                    Resized(keys=["image", "label"], spatial_size=self.target_size, mode=['area', 'nearest']),
                     ScaleIntensityRanged(
                         keys=["image"], a_min=0, a_max=amax,
                         b_min=0.0, b_max=1.0, clip=True),
@@ -252,11 +218,9 @@ class PredDataset2D(Dataset):
     def __getitem__(self, idx):
         transform = Compose(
             [
-                # AddChannel(), # deprecated in monai 1.3.2
                 ScaleIntensityRange(a_min=0, a_max=self.amax,
                                     b_min=0.0, b_max=1.0, clip=True,
                                     ),
-                # SpatialPadd(keys=["image", "label"], spatial_size=self.target_size),
                 EnsureType()
             ]
         )
@@ -306,8 +270,8 @@ class Unet2D(pl.LightningModule):
         
         elif self.hparams.model == "swin":
             img_size = self.hparams.pred_patch_size
-            feature_size = 48        # Base feature size for the model
-            use_checkpoint = True   #  gradient checkpointing to save memory
+            feature_size = 48        
+            use_checkpoint = True   
             dropout_rate = 0.4
             attention_dropout_rate = 0.2
             depths = [2, 4, 8, 16, 24]  
@@ -387,10 +351,6 @@ class Unet2D(pl.LightningModule):
         images, labels = batch["image"], batch["label"]
         logits = self.forward(images)  # forward pass on a batch
         torch.save(images, 'train_tensor.pt')
-
-        # Compute the class weights
-        # class_weights = get_weights(labels)
-        # num_classes = self.hparams.num_classes
         
         classes = list(range(self.hparams.num_classes))
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -399,12 +359,10 @@ class Unet2D(pl.LightningModule):
         self.loss = loss.item()
 
         self.log("train_loss", loss.item(), on_step=False, on_epoch=True, prog_bar=True)
-        # self.logger.experiment['cont_images'].upload(File.as_image(images))
 
         if not self.has_executed:
             dummy_input = torch.rand((1, 3,) + self.hparams.pred_patch_size) 
             make_dot(self(dummy_input), params=dict(self.named_parameters())).render('network_graph', format='png')
-            # self.logger.experiment["model_visualization"].append(neptune.types.File("network_graph.png"))
             self.logger.log_image(key="model_visualization", images=["network_graph.png"]) # Wandb Logger
             self.has_executed = True
         return loss
@@ -412,8 +370,6 @@ class Unet2D(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         images, labels = batch["image"], batch["label"]
         logits = self.forward(images)
-        # class_weights = get_weights(labels)
-        # num_classes = self.hparams.num_classes
         classes = list(range(self.hparams.num_classes))
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         class_weights = get_weights(labels, classes, device, include_background=True)
@@ -431,16 +387,11 @@ class Unet2D(pl.LightningModule):
             gridx = torchvision.utils.make_grid(x, nrow=5)
 
             # Convert the grid to a PIL image
-            # self.logger.experiment["training_imgs"].append(to_pil(gridx)) # Neptune Logger
             self.logger.log_image(key="training_img", images=[to_pil(gridx)]) # Wandb Logger
-
-            # Repeat the process for gridy if needed
             preds = torch.argmax(y, dim=1).byte().squeeze(1)
             preds = (preds * 255).byte()
             y = transform_pred_to_annot(preds)
-
             gridy = torchvision.utils.make_grid(y.view(y.shape[0], 1, y.shape[1], y.shape[2]), nrow=5)
-            # self.logger.experiment["prediction_imgs"].append(to_pil(gridy)) #Neptune Logger 
             self.logger.log_image(key="prediction_imgs", images=[to_pil(gridy)]) # Wandb Logger
 
         if torch.cuda.is_available():
@@ -498,6 +449,7 @@ class Unet2D(pl.LightningModule):
 
     def predict_step(self, batch, batch_idx):
         images, fnames = batch
+        
         # logits = self.pred_function(images.squeeze(0))
         cropped_images = extract_largest_component_bbox_image(images, predict=True)
         logits = self.pred_function(cropped_images)

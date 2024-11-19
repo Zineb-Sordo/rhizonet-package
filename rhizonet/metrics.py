@@ -6,7 +6,7 @@ import torchmetrics
 from skimage import io
 from utils import createBinaryAnnotation, transform_annot
 
-def evaluate_all_metrics(pred, target, task='binary', num_classes=2, background_index=0):
+def evaluate_all_metrics(pred, target, task='binary', num_classes=3, background_index=0):
 
     cnfmat = torchmetrics.ConfusionMatrix(
                                         num_classes=num_classes,
@@ -38,12 +38,15 @@ def main(pred_path, label_path, log_dir):
     label_list = sorted([os.path.join(label_path, e) for e in os.listdir(label_path) if not e.startswith(".")])
     dict_metrics = {}
     for pred,lab in zip(pred_list, label_list):
-        prediction, label = torch.tensor(transform_annot(io.imread(pred), value_map={"0":"0", "255":"1"})), torch.tensor(transform_annot(io.imread(lab), value_map={"0":"0", "85":"1", "170":"0"}))
+
+        # if we want to run evaluation on binary masks with root vs background only
+        pred,lab= torch.tensor(transform_annot(io.imread(pred), value_map={"0":"0", "255":"1"})), torch.tensor(transform_annot(io.imread(lab), value_map={"0":"0", "85":"1", "170":"0"}))
+       
         # dict_metrics["preds_path"] = pred
         # dict_metrics["label_path"] = lab
         filename = os.path.basename(pred)
         dict_metrics[filename] = {}
-        acc, prec, rec, iou, dice = evaluate_all_metrics(prediction, label)
+        acc, prec, rec, iou, dice = evaluate_all_metrics(pred,lab)
         dict_metrics[filename]['accuracy'] = acc
         dict_metrics[filename]['precision'] = prec
         dict_metrics[filename]['recall'] = rec
@@ -58,3 +61,4 @@ def main(pred_path, label_path, log_dir):
 #     label_path = "/home/zsordo/datasets/test_data/labels/"
 #     log_dir = "/home/zsordo/rhizonet-fovea/results/training_patches64_ex7ex9_batch32_dropout40"
 #     main(pred_path, label_path, log_dir)
+

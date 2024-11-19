@@ -32,7 +32,11 @@ from datetime import datetime
 
 
 def _parse_training_variables(argparse_args):
-    """ Merges parameters from json config file and argparse, then parses/modifies parameters a bit"""
+    """
+    Merges parameters from json config file and argparse, then parses/modifies parameters
+    
+    """
+
     args = vars(argparse_args)
     # overwrite argparse defaults with config file
     with open(args["config_file"]) as file_json:
@@ -70,39 +74,6 @@ def predict_step(image_path, model, pred_patch_size):
     pred = torch.argmax(logits, dim=1).byte().squeeze(dim=1)
     pred = (pred * 255).byte()
     return pred
-
-
-def elliptical_crop(img, center_x, center_y, width, height):
-    # Open image using PIL
-    image = Image.fromarray(np.uint8(img))
-    image_width, image_height = image.size
-
-    # Create an elliptical mask using PIL
-    mask = Image.new('1', (image_width, image_height), 0)
-    draw = ImageDraw.Draw(mask)
-    draw.ellipse((center_x - width / 2, center_y - height / 2, center_x + width / 2, center_y + height / 2), fill=1)
-
-    # Convert the mask to a PyTorch tensor
-    mask_tensor = TF.to_tensor(mask)
-
-    # Apply the mask to the input image using element-wise multiplication
-    cropped_image = TF.to_pil_image(torch.mul(TF.to_tensor(image), mask_tensor))
-
-    return image, np.array(cropped_image)
-
-    
-def get_biomass(binary_img):
-    roi = binary_img > 0
-    nerror = 0
-    binary_img = binary_img * roi
-    biomass = np.unique(binary_img.flatten(), return_counts=True)
-    try:
-        nbiomass = biomass[1][1]
-    except:
-        nbiomass = 0
-        nerror += 1
-        print("Seg error in ")
-    return nbiomass
 
 
 '''

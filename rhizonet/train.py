@@ -1,3 +1,17 @@
+"""
+Script for training and evaluation a residual U-Net model for image segmentation.
+The training process of RhizoNet includes logging, checkpointing and metrics evaluation.
+
+Dependencies:
+- PyTorch Lightning
+- MONAI
+- Scikit-image
+- wandb
+
+Usage:
+    python train.py --config_file ./setup_files/setup-unet2d.json --gpus 2 --strategy ddp --accelerator gpu
+"""
+
 import os
 import json
 import csv
@@ -13,49 +27,59 @@ from unet2D import Unet2D, ImageDataset, PredDataset2D
 from simpleLogger import mySimpleLogger
 from monai.data import list_data_collate
 from lightning.pytorch.loggers import WandbLogger 
-from utils import transform_pred_to_annot, createBinaryAnnotation
+from utils import transform_pred_to_annot, createBinaryAnnotation, get_image_paths
 
 import metrics
 
 
 def _parse_training_variables(argparse_args):
-    """ Merges parameters from json config file and argparse, then parses/modifies parameters a bit"""
+    """ 
+    Parse and merge training variables from a JSON configuration file and command-line arguments.
+
+    Args:
+        argparse_args (Namespace): Command-line arguments parsed by argparse.
+
+    Returns:
+        tuple: Updated arguments, dataset parameters, and model parameters. 
+    """
     args = vars(argparse_args)
+
     # overwrite argparse defaults with config file
     with open(args["config_file"]) as file_json:
         config_dict = json.load(file_json)
         args.update(config_dict)
+
     dataset_args, model_args = args['dataset_params'], args['model_params']
     dataset_args['patch_size'] = tuple(dataset_args['patch_size'])  # tuple expected, not list
     model_args['pred_patch_size'] = tuple(model_args['pred_patch_size'])  # tuple expected, not list
+
     return args, dataset_args, model_args
 
 
 def train_model(args):
     """
-    Train RhizoNet on a given dataset
+    Train and evaluate RhizoNet on a specified dataset.
 
     Args:
-        model_config (json filepath): Configuration of the model in a json file 
-
-    
+        args (Namespace): Command-line containing: 
+            - config_file (str): Path to the JSON Configuration of the model.
+            - gpus (int): Number of gpu nodes to use training.
+            - strategy (str): Strategy to use for training (e.g., 'ddp', 'dp')
+            - accelerator (str): cpu or gpu training
     """
 
 
-    # get vars from JSON files
+    # Load image and label filepaths 
     args, dataset_params, model_params = _parse_training_variables(args)
-    data_dir, log_dir = model_params['data_dir'], model_params['log_dir']
+    image_dir, label_dir, log_dir = model_params['image_dir'], model_params['label_dir'], model_params['log_dir']
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-
-    '''The training data should be in folders names images and labels --> to specify in the readme file'''
-    images_dir, label_dir = data_dir + "/images", data_dir + "/labels"
     images, labels = [], []
-    # for f in os.listdir(images_dir): # if images are in subfolders e.g. in date subfolders
-    images += sorted(glob.glob(os.path.join(images_dir, "*.tif")))
-    labels += sorted(glob.glob(os.path.join(label_dir,  "*.png")))
 
-    # randomly split data into train/val/test_masks
+    images = get_image_paths(image_dir)
+    labels = get_image_paths(label_dir)
+
+    # Split data into training, validation and test sets
     train_len, val_len, test_len = np.cumsum(np.round(len(images) * np.array(dataset_params['data_split'])).astype(int))
     idx = np.random.permutation(np.arange(len(images)))
 
@@ -65,18 +89,16 @@ def train_model(args):
     val_labels = [labels[i] for i in idx[train_len:val_len]]
     test_images = [images[i] for i in idx[val_len:]]
     test_labels = [labels[i] for i in idx[val_len:]]
-    # create datasets
+    
+    # Create datasets
     train_dataset = ImageDataset(train_images, train_labels, dataset_params, training=True)
     val_dataset = ImageDataset(val_images, val_labels, dataset_params, )
     test_dataset = ImageDataset(test_images, test_labels, dataset_params, )
 
-    # initialise the LightningModule
+    # Initialize Lightning module
     unet = Unet2D(train_dataset, val_dataset, **model_params)
 
-    # set up loggers and checkpoints
-    # my_logger = mySimpleLogger(log_dir=log_dir,
-    #                            keys=['val_acc', 'val_prec', 'val_recall', 'val_iou'])
-
+    # Set up logging and callbacks
     wandb_logger = WandbLogger(log_model="all",
                                project="rhizonet")
 
@@ -96,7 +118,7 @@ def train_model(args):
                                                    mode='min')
     lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval='epoch', log_momentum=False)
 
-    # initialise Lightning's trainer. (put link to pytorch lightning)
+    # Initialize PyTorch Lightning trainer
     trainer = pl.Trainer(
         default_root_dir=log_dir,
         callbacks=[checkpoint_callback, lr_monitor, stopping_callback],
@@ -110,17 +132,17 @@ def train_model(args):
         max_epochs=model_params['nb_epochs']
     )
 
-    # train
+    # Train the omdel
     trainer.fit(unet)
 
-    # test_masks
+    # Test the model
     test_loader = torch.utils.data.DataLoader(
         test_dataset, batch_size=model_params['batch_size'], shuffle=False,
         collate_fn=list_data_collate, num_workers=model_params["num_workers"],
         persistent_workers=True, pin_memory=torch.cuda.is_available())
     trainer.test(unet, test_loader, ckpt_path='best', verbose=True)
 
-    # predict and save
+    # Generate predictions
     pred_img_path = os.path.join(model_params['pred_data_dir'], "images")
     pred_lab_path = os.path.join(model_params['pred_data_dir'], "labels")
     predict_dataset = PredDataset2D(pred_img_path, dataset_params)
@@ -130,40 +152,23 @@ def train_model(args):
         persistent_workers=True, pin_memory=torch.cuda.is_available())
     
     predictions = trainer.predict(unet, predict_loader)
-    # save predictions
+    
+    # Save predictions
     pred_path = os.path.join(log_dir, 'predictions')
-    if not os.path.exists(pred_path):
-        os.makedirs(pred_path)
+    os.makedirs(pred_path, exist_ok=True)
+
     for (pred, _, fname) in predictions:
         pred = transform_pred_to_annot(pred.numpy().squeeze().astype(np.uint8))
-        fname = os.path.basename(fname[0]).replace('tif', 'png')
+        fname = os.path.basename(fname[0]).split('.')[0] + ".png"
         # pred_img, mask = elliptical_crop(pred, 1000, 1500, width=1400, height=2240)
-        # binary_mask = createBinaryAnnotation(pred).numpy().squeeze().astype(np.uint8)
         binary_mask = createBinaryAnnotation(pred).squeeze().astype(np.uint8)
         io.imsave(os.path.join(pred_path, fname), binary_mask, check_contrast=False)
 
-
-    # Evaluate metrics on full size test images using metrics.py 
+    # Evaluate metrics on full size test images 
     metrics.main(pred_path, pred_lab_path, log_dir)
         
 
-    """Example 1: 
-
-    from rhizonet.train import train_model
-
-    args = {
-        "config_file": "./setup-files/setup-unet2d.json",
-    }
-    
-    train_model(args) 
-
-    Return: None
-    Saves model_path and predictions in save_path directory --> ISSUE CANNOT RUN DDP AND 2 NODES training intervactive needs script training 
-
-    """
-
 if __name__ == "__main__":
-
     parser = ArgumentParser(conflict_handler='resolve')
     parser.add_argument("--config_file", type=str,
                         default="./setup_files/setup-unet2d.json",

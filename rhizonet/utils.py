@@ -86,13 +86,13 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
         
 
 def class_count(data):
+
     tot = sum(np.unique(data.flatten(), return_counts=True)[1])
     l_count = []
     for i in range(len(np.unique(data.flatten()))):
         l_count.append((np.unique(data.flatten(), return_counts=True)[1][i] / tot,
                         np.unique(data.flatten(), return_counts=True)[0][i]))
     return l_count
-
 
 
 def compute_class_weights(labels, classes, device, include_background=False, ):
@@ -134,6 +134,7 @@ def get_weights(labels, classes, device, include_background=False,):
     class_weights[class_counts.nonzero()] = 1 / class_counts[class_counts.nonzero()]
     class_weights /= class_weights.sum()
     print("class weights {}".format(class_weights))
+
     return class_weights
 
 
@@ -195,9 +196,9 @@ def get_image_paths(dir):
     image_files = []
     for root, directories, files in os.walk(dir):
         for filename in files:
-            if not filename.startswith(".DS_Store"):
-                image_files.append(os.path.join(root, filename))  # hardcoding
-    return image_files
+            if not filename.startswith("."):
+                image_files.append(os.path.join(root, filename))  
+    return sorted(image_files)
 
 
 def contrast_img(img):
@@ -234,3 +235,17 @@ def createBinaryAnnotation(img):
     else:
         raise TypeError("Input should be a PyTorch tensor or a NumPy array.")
     return bkg + frg
+
+
+def get_biomass(binary_img):
+    roi = binary_img > 0
+    nerror = 0
+    binary_img = binary_img * roi
+    biomass = np.unique(binary_img.flatten(), return_counts=True)
+    try:
+        nbiomass = biomass[1][1]
+    except:
+        nbiomass = 0
+        nerror += 1
+        print("Seg error in ")
+    return nbiomass
