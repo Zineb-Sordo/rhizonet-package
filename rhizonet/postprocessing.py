@@ -42,8 +42,6 @@ def processing(data_path, output_path, area_opening_param=500, area_closing_para
     element = disk(disk_radius)
 
     for e in tqdm(sorted([e for e in os.listdir(data_path) if not e.startswith(".")])):
-        print("Processing {}".format(e))
-
         pred_data = os.path.join(data_path, e)
         pred_chull_dir = os.path.join(output_path, e)
 
@@ -53,11 +51,15 @@ def processing(data_path, output_path, area_opening_param=500, area_closing_para
             # Get hull convex shape of overlapped images for one ecofolder
             lst_img = []
             for file in sorted([e for e in os.listdir(pred_data) if not e.startswith(".")]):
+                print("Processing {}".format(file))
+
                 path = os.path.join(pred_data, file)
                 img = io.imread(path)
                 lst_img.append(img)
             proj_img = maxProjection(lst_img)
         else:
+            print("Processing {}".format(e))
+
             os.makedirs(output_path, exist_ok=True)
             img = io.imread(pred_data)
             proj_img = maxProjection([img])
