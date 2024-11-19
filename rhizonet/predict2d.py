@@ -69,7 +69,7 @@ def predict_step(image_path, model, pred_patch_size):
     logits = pred_function(image.unsqueeze(0), model, pred_patch_size)
     pred = torch.argmax(logits, dim=1).byte().squeeze(dim=1)
     pred = (pred * 255).byte()
-    return pred
+    return pred.cpu()
 
 
 def elliptical_crop(img, center_x, center_y, width, height):
