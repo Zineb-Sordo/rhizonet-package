@@ -53,27 +53,30 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
     cropped_image = img[..., min_row:max_row, min_col:max_col]
 
     if lab is not None:
+        
         cropped_label = lab[..., min_row:max_row, min_col:max_col]
         new_label = np.zeros_like(cropped_label)
         new_label[..., filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_label[...,
         filled_largest_component_mask[min_row:max_row, min_col:max_col]]
         return new_image, new_label
+    
     else:
+
         if predict:
             # Create a new image with the cropped content but keeping input image shape
             new_image = np.zeros_like(img)
             # Applying the mask without cropping out the ROI 
             new_image[..., min_row:max_row, min_col:max_col] = cropped_image * filled_largest_component_mask[min_row:max_row, min_col:max_col]
-            print(new_image.shape)
-            return torch.Tensor(new_image).to('cuda')
+        
         else:
             # Create a new image with the cropped content
             new_image = np.zeros_like(cropped_image)
-
             # Final image/ROI is cropped by applying a boolean mask
             new_image[..., filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_image[...,
             filled_largest_component_mask[min_row:max_row, min_col:max_col]]
-            return new_image
+
+        return new_image
+    
         
 
 def class_count(data):
