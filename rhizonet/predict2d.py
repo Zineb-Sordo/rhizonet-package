@@ -126,7 +126,6 @@ def predict_model(args):
     for ecofab in sorted(os.listdir(pred_data_dir)):
         if not ecofab.startswith("."):
 
-            print("Predicting for {}".format(ecofab))
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             unet = Unet2D.load_from_checkpoint(args['model_path']).to(device)
             unet.eval()
@@ -136,9 +135,12 @@ def predict_model(args):
                 lst_files = sorted(os.listdir(os.path.join(pred_data_dir, ecofab)))
                 for file in tqdm(lst_files):
                     if not file.startswith("."):
+                        print("Predicting for {}".format(file))
+
                         file_path = os.path.join(pred_data_dir, ecofab, file)
                         get_prediction(file_path, unet, args['pred_patch_size'], os.path.join(pred_path, ecofab))
             else:
+                print("Predicting for {}".format(ecofab))
                 file_path = os.path.join(pred_data_dir, ecofab)
                 get_prediction(file_path, unet, args['pred_patch_size'], pred_path)
 
