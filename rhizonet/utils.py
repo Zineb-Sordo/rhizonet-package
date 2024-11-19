@@ -37,17 +37,17 @@ def get_lcc(image):
 
 def extract_largest_component_bbox_image(img, lab=None, predict=False):
     # Load and preprocess the image
-    # if predict:
-    #     img = img.cpu().numpy()
-    #     image = img[0, 2, ...]
-    # else:
-    #     image = img[2, ...]
-
-    if img.device.type == "cuda":
+    if predict:
         img = img.cpu().numpy()
+        image = img[0, 2, ...]
+    else:
+        image = img[2, ...]
+
+    # if img.device.type == "cuda":
+    #     img = img.cpu().numpy()
     
-    # Remove dimension if there is a batch dim and format is (B, C, H, W)
-    image = img.numpy().squeeze(0)[2, ...]
+    # # Remove dimension if there is a batch dim and format is (B, C, H, W)
+    # image = img.numpy().squeeze(0)[2, ...]
 
     # Get the largest connected component
     filled_largest_component_mask, largest_component = get_lcc(image)
