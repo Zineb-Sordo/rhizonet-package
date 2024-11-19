@@ -247,6 +247,7 @@ class Unet2D(pl.LightningModule):
         self.hparams.output_channels = self.hparams.num_classes
         self.hparams.pred_patch_size = self.hparams.pred_patch_size
         self.hparams.model = self.hparams.model
+        self.hparams.spatial_dims = self.hparams.spatial_dims
         self.train_ds = train_ds
         self.val_ds = val_ds
 
@@ -255,7 +256,7 @@ class Unet2D(pl.LightningModule):
                                                    normalize=None)
         if self.hparams.model == 'resnet':
             self.model = UNet(
-                spatial_dims=2,
+                spatial_dims=self.hparams.spatial_dims,
                 in_channels=self.hparams.input_channels,
                 out_channels=self.hparams.output_channels,
                 channels=(32, 64, 128, 256, 512),
@@ -279,7 +280,7 @@ class Unet2D(pl.LightningModule):
 
             # Instantiate the model
             self.model = SwinUNETR(
-                spatial_dims=2,
+                spatial_dims=self.hparams.spatial_dims,
                 img_size=img_size,
                 in_channels=self.hparams.input_channels,
                 out_channels=self.hparams.output_channels,
@@ -449,7 +450,7 @@ class Unet2D(pl.LightningModule):
 
     def predict_step(self, batch, batch_idx):
         images, fnames = batch
-        
+
         # logits = self.pred_function(images.squeeze(0))
         cropped_images = extract_largest_component_bbox_image(images, predict=True)
         logits = self.pred_function(cropped_images)
