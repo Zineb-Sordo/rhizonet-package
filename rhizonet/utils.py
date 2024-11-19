@@ -43,8 +43,8 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
     # else:
     #     image = img[2, ...]
 
-    # if img.device.type == "cuda":
-    #     img = img.cpu().numpy()
+    if img.device.type == "cuda":
+        img = img.cpu().numpy()
     
     # Remove dimension if there is a batch dim and format is (B, C, H, W)
     image = img.numpy().squeeze(0)[2, ...]
@@ -81,7 +81,7 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
             new_image[..., filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_image[...,
             filled_largest_component_mask[min_row:max_row, min_col:max_col]]
 
-        return torch.Tensor(new_image)    
+        return torch.Tensor(new_image).to("cuda") 
         
 
 def class_count(data):
