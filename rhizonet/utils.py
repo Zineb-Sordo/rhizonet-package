@@ -40,8 +40,6 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
     if predict:
         img = img.cpu().numpy()
         image = img[0, 2, ...]
-        print(img.shape, "img")
-        print(image.shape, "image")
     else:
         image = img[2, ...]
     
