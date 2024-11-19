@@ -500,10 +500,6 @@ class Unet2D(pl.LightningModule):
         images, fnames = batch
         # logits = self.pred_function(images.squeeze(0))
         cropped_images = extract_largest_component_bbox_image(images, predict=True)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        cropped_images = torch.Tensor(cropped_images).to(device)
-
         logits = self.pred_function(cropped_images)
 
         preds = torch.argmax(logits, dim=1).byte().squeeze(dim=1)

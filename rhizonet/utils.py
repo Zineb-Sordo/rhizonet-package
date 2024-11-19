@@ -37,12 +37,18 @@ def get_lcc(image):
 
 def extract_largest_component_bbox_image(img, lab=None, predict=False):
     # Load and preprocess the image
-    if predict:
+    # if predict:
+    #     img = img.cpu().numpy()
+    #     image = img[0, 2, ...]
+    # else:
+    #     image = img[2, ...]
+
+    if img.device.type == "cuda":
         img = img.cpu().numpy()
-        image = img[0, 2, ...]
-    else:
-        image = img[2, ...]
     
+    # Remove dimension if there is a batch dim and format is (B, C, H, W)
+    image = img.numpy().squeeze(0)[2, ...]
+
     # Get the largest connected component
     filled_largest_component_mask, largest_component = get_lcc(image)
 
@@ -53,7 +59,7 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
     cropped_image = img[..., min_row:max_row, min_col:max_col]
 
     if lab is not None:
-        
+
         cropped_label = lab[..., min_row:max_row, min_col:max_col]
         new_label = np.zeros_like(cropped_label)
         new_label[..., filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_label[...,
@@ -67,7 +73,7 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
             new_image = np.zeros_like(img)
             # Applying the mask without cropping out the ROI 
             new_image[..., min_row:max_row, min_col:max_col] = cropped_image * filled_largest_component_mask[min_row:max_row, min_col:max_col]
-        
+            
         else:
             # Create a new image with the cropped content
             new_image = np.zeros_like(cropped_image)
@@ -75,8 +81,7 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
             new_image[..., filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_image[...,
             filled_largest_component_mask[min_row:max_row, min_col:max_col]]
 
-        return new_image
-    
+        return torch.Tensor(new_image)    
         
 
 def class_count(data):
