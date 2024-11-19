@@ -66,8 +66,8 @@ def pred_function(image, model, pred_patch_size):
 def predict_step(image_path, model, pred_patch_size):
     image, img_path = transform_image(image_path)
     print(image.shape, "image")
-    print((image.squeeze(0)).shape, "squeeze image")
-    cropped_image = extract_largest_component_bbox_image(image.squeeze(0),lab=None,  predict=True)
+    print((image.unsqueeze(0)).shape, "squeeze image")
+    cropped_image = extract_largest_component_bbox_image(image.unsqueeze(0),lab=None,  predict=True)
     logits = pred_function(cropped_image, model, pred_patch_size)
     pred = torch.argmax(logits, dim=1).byte().squeeze(dim=1)
     pred = (pred * 255).byte()
