@@ -25,7 +25,7 @@ from monai.transforms import (
     EnsureType
 )
 
-from utils import transform_pred_to_annot, createBinaryAnnotation, extract_largest_component_bbox_image
+from utils import MapImage, createBinaryAnnotation, extract_largest_component_bbox_image
 from PIL import ImageDraw
 import torchvision.transforms.functional as TF
 from datetime import datetime
@@ -81,9 +81,10 @@ This following function can be used to output comparison plots between the predi
 and the raw image instead of just the prediction 
 '''
 
-def get_prediction(file, unet, pred_patch_size, pred_path):
-    prediction = predict_step(file, unet, pred_patch_size)[0, :, :]
-    pred = transform_pred_to_annot(prediction.cpu().numpy().squeeze().astype(np.uint8))
+def get_prediction(file, unet, pred_patch_size, pred_path, labels):
+    prediction = predict_step(file, unet, pred_patch_size)[0, ...]
+    prediction = MapImage(prediction, (list(range(len(labels))), labels))
+    pred = prediction.cpu().numpy().squeeze().astype(np.uint8)
     # pred_img, mask = elliptical_crop(pred, 1000, 1500, width=1400, height=2240)
     binary_mask = createBinaryAnnotation(pred).astype(np.uint8)
     io.imsave(os.path.join(pred_path, os.path.basename(file).split('.')[0] + ".png"), binary_mask, check_contrast=False)
@@ -92,6 +93,7 @@ def get_prediction(file, unet, pred_patch_size, pred_path):
 def predict_model(args):
     pred_data_dir = args['pred_data_dir']
     pred_path = args['pred_path']
+    labels = args['labels']
     
     # Looping through all ecofab folders in the pred_data_dir directory
     for ecofab in sorted(os.listdir(pred_data_dir)):
@@ -109,11 +111,11 @@ def predict_model(args):
                         print("Predicting for {}".format(file))
 
                         file_path = os.path.join(pred_data_dir, ecofab, file)
-                        get_prediction(file_path, unet, args['pred_patch_size'], os.path.join(pred_path, ecofab))
+                        get_prediction(file_path, unet, args['pred_patch_size'], os.path.join(pred_path, ecofab), labels)
             else:
                 print("Predicting for {}".format(ecofab))
                 file_path = os.path.join(pred_data_dir, ecofab)
-                get_prediction(file_path, unet, args['pred_patch_size'], pred_path)
+                get_prediction(file_path, unet, args['pred_patch_size'], pred_path, labels)
 
 
 if __name__ == '__main__':

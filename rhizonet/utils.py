@@ -7,9 +7,56 @@ from skimage.color import rgb2hsv
 from skimage import exposure
 from skimage import io, filters, measure
 from scipy import ndimage as ndi
+from typing import Union, List, Tuple, Sequence, Dict
 
 
-def get_lcc(image):
+def extract_largest_component_bbox_image(img: Union[np.ndarray, torch.Tensor], 
+                                         lab: Union[np.ndarray, torch.Tensor] = None, 
+                                         predict: bool = False) -> Union[np.ndarray, torch.Tensor, Tuple[Union[np.ndarray, torch.Tensor], str]]:
+    """
+    Extract the largest connected component (LCC) of the given image and gets the bounding box associated to this LCC and then either:
+        - crops the image to the bounding box
+        - applies a binary mask to the image and maintains the same shape as the input image with everything but the LCC set as black background
+    This function can be applied to both the image and the annotation if available
+
+    Args:
+        img ([Union[numpy.ndarray, torch.Tensor]]): The input image. 
+            - NumPy array or PyTorch tensor: Shape can be (C, H, W) or  (B, C, H, W) if batch dimension included
+            - None (default): If None, the function raises a ValueError.
+        lab (Union[np.ndarray, torch.Tensor], optional): The label or annotated image. Defaults to None.
+        predict (bool, optional): _description_. Defaults to False.
+
+    Returns:
+        Union[numpy.ndarray, torch.Tensor, Tuple[Union[numpy.ndarray, torch.Tensor], Union[numpy.ndarray, torch.Tensor]]]:
+            - If label is None: A NumPy array or PyTorch tensor representing the image only.
+            - If label is available: A tuple containing:
+                - An image (NumPy array or PyTorch tensor).
+                - A label image (NumPy array or PyTorch tensor).
+    """
+
+    if img is None:
+        raise ValueError("Image cannot be None.")
+    elif isinstance(img, np.ndarray):
+        print("Processing a NumPy array.")
+    elif isinstance(img, torch.Tensor):
+        print("Processing a PyTorch tensor.")
+    else:
+        raise TypeError("Input must be a numpy.ndarray, torch.Tensor, or None.")
+
+    # Load and preprocess the image
+    # if predict:
+    #     img = img.cpu().numpy()
+    #     image = img[0, 2, ...]
+    # else:
+    #     image = img[2, ...]
+
+    # if img.device.type == "cuda":
+        # img = img.cpu().numpy()
+    
+    # Remove dimension if there is a batch dim and format is (B, C, H, W)
+    image = img.squeeze(0)[2, ...]
+
+    # Get the largest connected component
     image = ndi.gaussian_filter(image, sigma=2)
 
     # Threshold the image
@@ -32,34 +79,14 @@ def get_lcc(image):
     # Fill all holes in the largest connected component
     filled_largest_component_mask = ndi.binary_fill_holes(largest_component_mask)
 
-    return filled_largest_component_mask, largest_component
-
-
-def extract_largest_component_bbox_image(img, lab=None, predict=False):
-    # Load and preprocess the image
-    # if predict:
-    #     img = img.cpu().numpy()
-    #     image = img[0, 2, ...]
-    # else:
-    #     image = img[2, ...]
-
-    # if img.device.type == "cuda":
-        # img = img.cpu().numpy()
-    
-    # Remove dimension if there is a batch dim and format is (B, C, H, W)
-    image = img.squeeze(0)[2, ...]
-
-    # Get the largest connected component
-    filled_largest_component_mask, largest_component = get_lcc(image)
-
     # Get the bounding box of the largest connected component
     min_row, min_col, max_row, max_col = largest_component.bbox
 
     # Crop the ORIGINAL image to the bounding box dimensions
     cropped_image = img[..., min_row:max_row, min_col:max_col]
 
+    # Processing the label image
     if lab is not None:
-
         cropped_label = lab[..., min_row:max_row, min_col:max_col]
         new_label = np.zeros_like(cropped_label)
         new_label[..., filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_label[...,
@@ -71,58 +98,33 @@ def extract_largest_component_bbox_image(img, lab=None, predict=False):
         if predict:
             # Create a new image with the cropped content but keeping input image shape
             new_image = np.zeros_like(img)
+
             # Applying the mask without cropping out the ROI 
             new_image[..., min_row:max_row, min_col:max_col] = cropped_image * filled_largest_component_mask[min_row:max_row, min_col:max_col]
             return torch.Tensor(new_image).to("cuda") 
         else:
             # Create a new image with the cropped content
             new_image = np.zeros_like(cropped_image)
+
             # Final image/ROI is cropped by applying a boolean mask
             new_image[..., filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_image[...,
             filled_largest_component_mask[min_row:max_row, min_col:max_col]]
             return new_image
-
-        
         
 
-def class_count(data):
+def get_weights(labels: torch.Tensor, classes: List[int], device: str, include_background=False,) -> List[float]:
+    """Computes the weights of each class in the batch of labeled images 
 
-    tot = sum(np.unique(data.flatten(), return_counts=True)[1])
-    l_count = []
-    for i in range(len(np.unique(data.flatten()))):
-        l_count.append((np.unique(data.flatten(), return_counts=True)[1][i] / tot,
-                        np.unique(data.flatten(), return_counts=True)[0][i]))
-    return l_count
+    Args:
+        labels (torch.Tensor): Batch of labeled imagse with each pixel of an image equal to a class value. 
+        classes (List[int]): List of the classes
+        device (str): training device should be 'cuda' if training on GPU
+        include_background (bool, optional): Boolean to include or not the background valued as 0 when calculating the weight of the classes in the images. Defaults to False.
 
+    Returns:
+        List[float]: List of the class weights (floats).
+    """
 
-def compute_class_weights(labels, classes, device, include_background=False, ):
-    """Compute class weights based on the presence of classes in the labels."""
-    # Ensure labels are on the correct device
-    labels = labels.to(device)
-
-    batch_size = labels.size(0)
-    if not include_background:
-        classes.remove(0)
-
-    n = len(classes)
-    class_counts = torch.zeros(n, device=device)
-    for c in range(n):
-        if not include_background:
-            class_counts[c] = (labels == c + 1).sum().float()
-        else:
-            class_counts[c] = (labels == c).sum().float()
-            
-    total_pixels = labels.numel() // batch_size
-    class_weights = total_pixels / (class_counts + 1e-6)  # Add small value to avoid division by zero
-
-    # Normalize weights to sum to the number of classes
-    class_weights = class_weights / class_weights.sum() * len(classes)
-    
-    print("class weights {}".format(class_weights))
-    return class_weights
-
-
-def get_weights(labels, classes, device, include_background=False,):
     labels = labels.to(device)
     if not include_background:
         classes.remove(0)
@@ -138,44 +140,50 @@ def get_weights(labels, classes, device, include_background=False,):
     return class_weights
 
 
-def transform_pred_to_annot(image):
-    if isinstance(image, np.ndarray):
-        data = image.copy()
-    else:
-        data = image.detach()
-    data[data == 0] == 0
-    data[data == 254] = 85
-    data[data == 255] = 170
-    return data
-
-
-# def transform_annot(image):
-#     if isinstance(image, np.ndarray):
-#         data = image.copy()
-#     else:
-#         data = image.detach()
-#     data[data == 0] == 0
-#     data[data == 85] = 1
-#     data[data == 170] = 2
-#     return data
-
 # the alternative is to use MapLabelValued(["label"], [0, 85, 170],[0, 1, 2])
-def transform_annot(image, value_map):
+def MapImage(image: Union[np.ndarray, torch.Tensor], value_map: Tuple[List[int], List[int]]) -> Union[np.ndarray, torch.Tensor]:
+    """Maps the current values of a given input image to the values given by the tuple (current values, new values).
+
+    Args:
+        image (Union[np.ndarray, torch.Tensor]): The input image to transform
+        value_map (Tuple[List[int], List[int]]): Dictionary of values to be mapped
+
+    Raises:
+        TypeError: If the input image is neither a numpy array or a torch tensor
+
+    Returns:
+        Union[np.ndarray, torch.Tensor]: the transformed input after mapping.
+    
+    Example::
+        transformed_image = MapImage(image, ([0, 85, 170], [0, 1, 2]))
+    """
     if isinstance(image, np.ndarray) :      
         data = image.copy()
-    else:
+    elif isinstance(image, torch.Tensor):
         data = image.detach()
-    for key in value_map.keys():
-        data[data == int(key)] = int(value_map[key])
+    else:
+        raise TypeError("Input must be a numpy.ndarray, torch.Tensor")
+    keys, values = [str(e) for e in value_map[0]], value_map[1]
+    for key, value in zip(keys, values):
+        data[data == int(key)] = value
     return data
 
 
-def elliptical_crop(img, center_x, center_y, width, height, col=bool, ):
-    # Open image using PIL
-    if col:
-        image = Image.fromarray(img, 'RGB')
-    else:
-        image = Image.fromarray(img)
+def elliptical_crop(img: np.ndarray, center_x: int, center_y: int, width: int, height: int) -> Tuple[np.ndarray, np.ndarray]:
+    """Crops out an elliptical shape out of the input image and sets the rest as background 
+
+    Args:
+        img (np.ndarray): Input image
+        center_x (int): Center x coordinate of the ellipse 
+        center_y (int): Center y coordinate of the ellipse 
+        width (int): Width of the wanted ellipse
+        height (int): Height of the wanted ellipse
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: cropped output image
+    """
+
+    image = Image.fromarray(img)
     image_width, image_height = image.size
 
     # Create an elliptical mask using PIL
@@ -189,10 +197,19 @@ def elliptical_crop(img, center_x, center_y, width, height, col=bool, ):
     # Apply the mask to the input image using element-wise multiplication
     cropped_image = TF.to_pil_image(torch.mul(TF.to_tensor(image), mask_tensor))
 
-    return image, cropped_image
+    return image, np.array(cropped_image)
 
 
-def get_image_paths(dir):
+def get_image_paths(dir: str) -> List[str]:
+    """Goes through a folder directory and lists all filepaths
+
+    Args:
+        dir (str): folder directory to extract from all the filepaths 
+
+    Returns:
+        List[str]: list of all filepaths
+    """
+
     image_files = []
     for root, directories, files in os.walk(dir):
         for filename in files:
@@ -201,7 +218,17 @@ def get_image_paths(dir):
     return sorted(image_files)
 
 
-def contrast_img(img):
+def contrast_img(img: np.ndarray) -> np.ndarray:
+    """Applies the Adaptive Equalization or histogram equalization contrast method. This method
+    enhances the contrast of an image by adjusting the intensity values of pixels based on the 
+    distribution of pixel intensities in the image's histogram. 
+
+    Args:
+        img (np.ndarray): input image
+
+    Returns:
+        np.ndarray: contrasted image
+    """
     # HSV image
     hsv_img = rgb2hsv(img)  # 3 channels
     # select 1channel
@@ -216,8 +243,20 @@ def contrast_img(img):
     return img
 
 
-def createBinaryAnnotation(img):
-    '''Find all the annotations that are root, then NOT root, then combine'''
+def createBinaryAnnotation(img: Union[np.ndarray, torch.Tensor]) -> Union[np.ndarray, torch.Tensor]:
+    """
+    Creates a binary mask out of the prediction resul with root as foreground and the rest as background
+
+    Args:
+        img (Union[np.ndarray, torch.Tensor]): Input image
+
+    Raises:
+        TypeError: if the input is neither a numpy array or a torch tensor 
+
+    Returns:
+        Union[np.ndarray, torch.Tensor]: binary mask 
+    """
+
     if isinstance(img, torch.Tensor):
         u = torch.unique(img)
         bkg = torch.zeros(img.shape)  # background
@@ -237,7 +276,15 @@ def createBinaryAnnotation(img):
     return bkg + frg
 
 
-def get_biomass(binary_img):
+def get_biomass(binary_img: np.ndarray) -> int:
+    """Calculate the biomass by counting the number of pixels equal to 1
+
+    Args:
+        binary_img (np.ndarray): input image as binary mask
+
+    Returns:
+        int: integer value corresponding to the pixel count or root biomass. 
+    """
     roi = binary_img > 0
     nerror = 0
     binary_img = binary_img * roi

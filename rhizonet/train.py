@@ -27,7 +27,7 @@ from unet2D import Unet2D, ImageDataset, PredDataset2D
 from simpleLogger import mySimpleLogger
 from monai.data import list_data_collate
 from lightning.pytorch.loggers import WandbLogger 
-from utils import transform_pred_to_annot, createBinaryAnnotation, get_image_paths
+from utils import MapImage, createBinaryAnnotation, get_image_paths
 
 import metrics
 
@@ -66,6 +66,21 @@ def train_model(args):
             - gpus (int): Number of gpu nodes to use training.
             - strategy (str): Strategy to use for training (e.g., 'ddp', 'dp')
             - accelerator (str): cpu or gpu training
+    
+    Returns: None
+
+    Notes:
+        - The evaluation results are saved to the file specified by 'save_path' in the configuration file 
+        - Training and validation metrics are also available in the WandDB project 'rhizonet'
+        - Predictions associated to the full size images specified in 'pred_data_dir' are generated after training and saved in the 'save_path' directory.
+        - Metrics (accuracy, precision, recall and IOU) are evaluated on full size images specified in 'pred_data_dir' and results are saved in a metrics.json files 
+
+    Example::
+        Run this script using the following command-line if 2 GPU nodes available: 
+            python train.py --gpus 2 --strategy "ddp" --config_file "./setup_files/setup-unet2d.json"
+        
+        Run this script using the following command-line if 1 GPU node available: 
+            python train.py --gpus 1 --strategy "dp" --config_file "./setup_files/setup-unet2d.json"
     """
 
 
@@ -132,7 +147,7 @@ def train_model(args):
         max_epochs=model_params['nb_epochs']
     )
 
-    # Train the omdel
+    # Train the model
     trainer.fit(unet)
 
     # Test the model
@@ -157,8 +172,10 @@ def train_model(args):
     pred_path = os.path.join(log_dir, 'predictions')
     os.makedirs(pred_path, exist_ok=True)
 
+    labels = model_params['labels']
     for (pred, _, fname) in predictions:
-        pred = transform_pred_to_annot(pred.numpy().squeeze().astype(np.uint8))
+        pred = MapImage(pred, (list(range(len(labels))), labels))
+        pred = pred.numpy().squeeze().astype(np.uint8)
         fname = os.path.basename(fname[0]).split('.')[0] + ".png"
         # pred_img, mask = elliptical_crop(pred, 1000, 1500, width=1400, height=2240)
         binary_mask = createBinaryAnnotation(pred).squeeze().astype(np.uint8)

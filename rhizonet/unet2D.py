@@ -13,7 +13,7 @@ from torchviz import make_dot
 import neptune
 from neptune.types import File
 
-from utils import get_weights, transform_pred_to_annot, transform_annot
+from utils import get_weights, MapImage
 import torchmetrics
 from monai.data import list_data_collate
 from monai.networks.nets import UNet, SwinUNETR
@@ -82,10 +82,6 @@ class tiff_reader(MapTransform):
                 if key == "image":
                     if self.image_col == 'cieLAB':
                         data[key] = rgb2lab(io.imread(data_dict[key]))  # cieLAB rep
-                    elif self.image_col == 'gray':
-                        data[key] = rgb2gray(io.imread(data_dict[key]))  # grayscale
-                    elif self.image_col == 'contrast':
-                        data[key] = contrast_img(io.imread(data_dict[key]))
                     else:
                         data[key] = np.transpose(np.array(Image.open(data_dict[key]))[..., :3], (2, 0, 1))
                 elif key == "label":
@@ -117,6 +113,7 @@ class ImageDataset(Dataset):
         self.rotate_range = args['rotate_range']
         self.scale_range = args['scale_range']
         self.shear_range = args['shear_range']
+        self.labels = args['labels']
         self.image_col = args["image_col"]
         self.input_channels = args['input_channels']
         self.target_size = args['patch_size']
@@ -124,13 +121,7 @@ class ImageDataset(Dataset):
         self.dilation = args['dilation']
         self.disk_dilation = args['disk_dilation']
 
-        # Contrast image processing option:
-        if args["image_col"] == 'contrast':
-            amax = 1
-        else:
-            amax = 255
-        self.amax = amax
-        self.transform = self.get_data_transforms(self.training, self.amax, self.boundingbox, self.dilation, self.disk_dilation)
+        self.transform = self.get_data_transforms(self.training, self.boundingbox, self.dilation, self.disk_dilation)
 
     def __len__(self):
         return self.Nsamples
@@ -142,33 +133,32 @@ class ImageDataset(Dataset):
             return self.transform(self.data_dicts[idx])
 
     # These transforms define the data preprocessing and augmentations done to the raw images BEFORE input to neural network
-    def get_data_transforms(self, training, amax, boundingbox, dilation, disk_dilation):
+    def get_data_transforms(self, training, boundingbox, dilation, disk_dilation):
         if not training:  # validation or test_masks set -- no image augmentation
             transform = Compose(
                 [
                     tiff_reader(keys=["image", "label"], image_col=self.image_col, boundingbox=boundingbox, dilation=dilation, disk_dilation=disk_dilation),
                     Resized(keys=["image", "label"], spatial_size=self.target_size, mode=['area', 'nearest']),
                     ScaleIntensityRanged(
-                        keys=["image"], a_min=0, a_max=amax,
+                        keys=["image"], a_min=0, a_max=255,
                         b_min=0.0, b_max=1.0, clip=True,
                     ),
                     MapLabelValued(["label"],
-                                    [0, 85, 170],
-                                    [0, 1, 2]),
+                                    self.labels,
+                                    list(range(len(self.labels)))),
                     SqueezeDimd(keys=["label"], dim=0),
                     CastToTyped(keys=["label"], dtype=torch.long),
                     EnsureTyped(keys=["image", "label"])
                 ]
             )
             
-
         else:  # training set -- do image augmentation
             transform = Compose(
                 [
                     tiff_reader(keys=["image", "label"], image_col=self.image_col, boundingbox=boundingbox, dilation=dilation, disk_dilation=disk_dilation),
                     Resized(keys=["image", "label"], spatial_size=self.target_size, mode=['area', 'nearest']),
                     ScaleIntensityRanged(
-                        keys=["image"], a_min=0, a_max=amax,
+                        keys=["image"], a_min=0, a_max=255,
                         b_min=0.0, b_max=1.0, clip=True),
                     RandFlipd(
                         keys=['image', 'label'],
@@ -187,8 +177,8 @@ class ImageDataset(Dataset):
                         scale_range=self.scale_range * np.ones(2)
                     ),
                     MapLabelValued(["label"],
-                                    [0, 85, 170],
-                                    [0, 1, 2]),
+                                    self.labels,
+                                    list(range(len(self.labels)))),
                     SqueezeDimd(["label"], dim=0),
                     CastToTyped(keys=["label"], dtype=torch.long),
                     EnsureTyped(keys=["image", "label"])
@@ -205,12 +195,8 @@ class PredDataset2D(Dataset):
         # self.data_file = pred_data_lst
         self.input_col = args['input_channels']
         self.image_col = args['image_col']
-        self.target_size = (3008,3008)
         self.boundingbox = args['boundingbox']
-        if self.image_col == 'contrast':
-            self.amax = 1
-        else:
-            self.amax = 255
+        self.amax = 255 # need to be RGB images 
 
     def __len__(self):
         return len(self.data_file)
@@ -218,7 +204,7 @@ class PredDataset2D(Dataset):
     def __getitem__(self, idx):
         transform = Compose(
             [
-                ScaleIntensityRange(a_min=0, a_max=self.amax,
+                ScaleIntensityRange(a_min=0, a_max=255,
                                     b_min=0.0, b_max=1.0, clip=True,
                                     ),
                 EnsureType()
@@ -228,19 +214,57 @@ class PredDataset2D(Dataset):
         img_path = os.path.join(self.pred_data_dir, img_name)
         # img_path = self.data_file[idx]
         img = np.array(Image.open(img_path))[..., :3]
-        if self.image_col == 'contrast':
-            img = transform(contrast_img(img))
-        else:
-            img = transform(np.transpose(img, (2, 0, 1)))
+        img = transform(np.transpose(img, (2, 0, 1)))
         
         if self.boundingbox:
             img = extract_largest_component_bbox_image(img, predict=True)
         return (img, img_path)
 
 
-
 class Unet2D(pl.LightningModule):
     def __init__(self, train_ds, val_ds, **kwargs):
+        """    
+        PyTorch Lightning Module for training and evaluating 2D and 3D UNet-based models.
+        This module supports both the traditional UNet and SwinUNETR architectures 
+        for image segmentation tasks.
+
+        Args:
+            train_ds (Dataset): Training dataset
+            val_ds (Dataset): Validation dataset
+            **kwargs: Additional keyword arguments for model configuration (e.g. model parameters).
+
+        Examples::
+
+        from monai.networks.nets import UNet, SwinUNETR
+
+        # 5 layers each down/up sampling their inputs by a factor 2 with residual blocks
+        model = UNet(
+                spatial_dims=2,
+                in_channels=3,
+                out_channels=3,
+                channels=(32, 64, 128, 256, 512),
+                strides=(2, 2, 2, 2),
+                kernel_size=3,
+                up_kernel_size=3,
+                num_res_units=2,
+                dropout=0.4,
+                norm=Norm.BATCH,
+            )
+
+        # SwinUNETR model with 3D inputs and batch normalization
+        model = SwinUNETR(
+                spatial_dims=3,
+                img_size=(256, 256, 256),
+                in_channels=3,
+                out_channels=3,
+                feature_size=48,
+                num_heads=[3, 6, 12, 24, 12] ,
+                depths=[2, 4, 8, 16, 24] ,
+                drop_rate=0.4,
+                attn_drop_rate=0.2,
+                norm_name='batch'
+            )
+        """
         super(Unet2D, self).__init__()
 
         self.save_hyperparameters()
@@ -391,7 +415,10 @@ class Unet2D(pl.LightningModule):
             self.logger.log_image(key="training_img", images=[to_pil(gridx)]) # Wandb Logger
             preds = torch.argmax(y, dim=1).byte().squeeze(1)
             preds = (preds * 255).byte()
-            y = transform_pred_to_annot(preds)
+
+
+            y = MapImage(preds, (list(range(len(self.labels))), self.labels))
+            
             gridy = torchvision.utils.make_grid(y.view(y.shape[0], 1, y.shape[1], y.shape[2]), nrow=5)
             self.logger.log_image(key="prediction_imgs", images=[to_pil(gridy)]) # Wandb Logger
 
@@ -450,13 +477,11 @@ class Unet2D(pl.LightningModule):
 
     def predict_step(self, batch, batch_idx):
         images, fnames = batch
-
         # logits = self.pred_function(images.squeeze(0))
         cropped_images = extract_largest_component_bbox_image(images, predict=True)
         logits = self.pred_function(cropped_images)
 
         preds = torch.argmax(logits, dim=1).byte().squeeze(dim=1)
-        preds = (preds * 255).byte()
         images = (images * 255).byte()  # convert from float (0-to-1) to uint8
         return (preds, images, fnames)
 
