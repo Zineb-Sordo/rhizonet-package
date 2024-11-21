@@ -112,8 +112,13 @@ def extract_largest_component_bbox_image(img: Union[np.ndarray, torch.Tensor],
             return new_image
         
 
-def get_weights(labels: torch.Tensor, classes: List[int], device: str, include_background=False,) -> List[float]:
-    """Computes the weights of each class in the batch of labeled images 
+def get_weights(
+        labels: torch.Tensor, 
+        classes: List[int], device: str, 
+        include_background=False,
+        ) -> List[float]:
+    """
+    Computes the weights of each class in the batch of labeled images 
 
     Args:
         labels (torch.Tensor): Batch of labeled imagse with each pixel of an image equal to a class value. 
@@ -141,8 +146,11 @@ def get_weights(labels: torch.Tensor, classes: List[int], device: str, include_b
 
 
 # the alternative is to use MapLabelValued(["label"], [0, 85, 170],[0, 1, 2])
-def MapImage(image: Union[np.ndarray, torch.Tensor], value_map: Tuple[List[int], List[int]]) -> Union[np.ndarray, torch.Tensor]:
-    """Maps the current values of a given input image to the values given by the tuple (current values, new values).
+def MapImage(image: Union[np.ndarray, torch.Tensor], 
+             value_map: Tuple[List[int], List[int]]
+             ) -> Union[np.ndarray, torch.Tensor]:
+    """
+    Maps the current values of a given input image to the values given by the tuple (current values, new values).
 
     Args:
         image (Union[np.ndarray, torch.Tensor]): The input image to transform
@@ -169,8 +177,13 @@ def MapImage(image: Union[np.ndarray, torch.Tensor], value_map: Tuple[List[int],
     return data
 
 
-def elliptical_crop(img: np.ndarray, center_x: int, center_y: int, width: int, height: int) -> Tuple[np.ndarray, np.ndarray]:
-    """Crops out an elliptical shape out of the input image and sets the rest as background 
+def elliptical_crop(img: np.ndarray, 
+                    center_x: int, center_y: int, 
+                    width: int, 
+                    height: int
+                    ) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Crops out an elliptical shape out of the input image and sets the rest as background 
 
     Args:
         img (np.ndarray): Input image
@@ -201,7 +214,8 @@ def elliptical_crop(img: np.ndarray, center_x: int, center_y: int, width: int, h
 
 
 def get_image_paths(dir: str) -> List[str]:
-    """Goes through a folder directory and lists all filepaths
+    """
+    Goes through a folder directory and lists all filepaths
 
     Args:
         dir (str): folder directory to extract from all the filepaths 
@@ -219,7 +233,8 @@ def get_image_paths(dir: str) -> List[str]:
 
 
 def contrast_img(img: np.ndarray) -> np.ndarray:
-    """Applies the Adaptive Equalization or histogram equalization contrast method. This method
+    """
+    Applies the Adaptive Equalization or histogram equalization contrast method. This method
     enhances the contrast of an image by adjusting the intensity values of pixels based on the 
     distribution of pixel intensities in the image's histogram. 
 
@@ -245,7 +260,7 @@ def contrast_img(img: np.ndarray) -> np.ndarray:
 
 def createBinaryAnnotation(img: Union[np.ndarray, torch.Tensor]) -> Union[np.ndarray, torch.Tensor]:
     """
-    Creates a binary mask out of the prediction resul with root as foreground and the rest as background
+    Creates a binary mask out of the prediction result with root as foreground and the rest as background
 
     Args:
         img (Union[np.ndarray, torch.Tensor]): Input image
@@ -277,7 +292,8 @@ def createBinaryAnnotation(img: Union[np.ndarray, torch.Tensor]) -> Union[np.nda
 
 
 def get_biomass(binary_img: np.ndarray) -> int:
-    """Calculate the biomass by counting the number of pixels equal to 1
+    """
+    Calculate the biomass by counting the number of pixels equal to 1
 
     Args:
         binary_img (np.ndarray): input image as binary mask

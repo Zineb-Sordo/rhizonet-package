@@ -1,3 +1,10 @@
+"""
+Script for applying postprocessing methods to infered predictions using a the convex hull method as well as morphological operations. 
+
+Usage:
+    python postprocessing.py --config_file ./setup_files/setup-processing.json 
+"""
+
 import os
 import numpy as np
 from skimage import io, util, color
@@ -14,7 +21,7 @@ from skimage.morphology import convex_hull_image, disk
 
 def _parse_training_variables(argparse_args):
     """ 
-    Parse processeing variables from the JSON processing configuration file and command-line arguments.
+    Parse processing variables from the JSON postprocessing configuration file and command-line arguments.
 
     Args:
         argparse_args (Namespace): Command-line arguments parsed by argparse.
@@ -22,7 +29,7 @@ def _parse_training_variables(argparse_args):
     Returns:
         Dict: Updated arguments 
     """    
-    
+
     args = vars(argparse_args)
     # overwrite argparse defaults with config file
     with open(args["config_file"]) as file_json:

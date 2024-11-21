@@ -1,3 +1,12 @@
+"""
+Script for creating small size patches given a specific patch size and sliding window size.
+Patches are saved only if at least a certain portion of pixels within the image are annotated to account for class imbalance. 
+This percentage is also specified in the configuration file.
+
+Usage:
+    python prepare_patches.py --config_file ./setup_files/setup-pprepare.json 
+"""
+
 import os
 import json
 import random
@@ -39,6 +48,8 @@ def parse_prepare_variables(argparse_args):
 def prepare_patches(args: Dict):
     """
     Create small size patches with the patch size and sliding windiw size given in the ``prepare_patches`` configuration file
+    Patches are saved only if at least a certain portion of pixels within the image are annotated to account for class imbalance. 
+    This percentage is also specified in the configuration file.
 
     Args:
         args (Dict): dictionary of all processing arguments 

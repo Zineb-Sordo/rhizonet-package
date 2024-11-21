@@ -1,3 +1,10 @@
+"""
+Script for runing inference using a pre-trained residual U-Net model for image segmentation.
+
+Usage:
+    python predict.py --config_file ./setup_files/setup-predict.json 
+"""
+
 import os
 import glob
 import argparse
@@ -159,7 +166,7 @@ def predict_model(args: Dict):
     Args:
         args (Dict): arguments specified in the configuration file
     """
-    
+
     pred_data_dir = args['pred_data_dir']
     save_path = args['save_path']
     labels = args['labels']
