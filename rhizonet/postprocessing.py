@@ -5,6 +5,7 @@ import argparse
 from tqdm import tqdm
 import json
 import torch
+from typing import List, Union, Sequence, Tuple
 
 from skimage.morphology import (erosion, dilation, closing, opening,
                                 area_closing, area_opening)
@@ -12,7 +13,16 @@ from skimage.measure import label
 from skimage.morphology import convex_hull_image, disk
 
 def _parse_training_variables(argparse_args):
-    """ Merges parameters from json config file and argparse, then parses/modifies parameters a bit"""
+    """ 
+    Parse processeing variables from the JSON processing configuration file and command-line arguments.
+
+    Args:
+        argparse_args (Namespace): Command-line arguments parsed by argparse.
+
+    Returns:
+        Dict: Updated arguments 
+    """    
+    
     args = vars(argparse_args)
     # overwrite argparse defaults with config file
     with open(args["config_file"]) as file_json:
@@ -23,22 +33,59 @@ def _parse_training_variables(argparse_args):
 
     return args
 
-def getLargestCC(segments):
-    '''Return a mask corresponding to the largest object'''
+def getLargestCC(segments: np.ndarray) -> np.ndarray:
+    """
+    Find the largest connected component within a 2D image 
+
+    Args:
+        segments (np.ndarray): A 2D binary or multi-class array (NumPy array) where labeled regions are to be identified.
+            - Binary image: Where non-zero values represent objects (foreground), and zero values represent the background.
+            - Multi-class image: Where different integer values represent distinct classes.
+
+    Returns:
+        np.ndarray: A 2D  mask corresponding to the largest object.
+    """
     labels = label(segments)
     largestCC = labels == np.argmax(np.bincount(labels.flat, weights=segments.flat))
     return largestCC
 
 
-def maxProjection(limg, ndown=1):
+def maxProjection(limg: List[np.ndarray], ndown: int =1) -> np.ndarray:
+    """
+    Apply maximum projection to a list of 2D slices.
+    The images in the list limg are downsampled by ndown before the maximum intensity projection is computed
+
+    Args:
+        limg (List[np.ndarray]): list of 2D images. 
+        ndown (int, optional): integer parameter that controls the downsampling factor for the 2D images along dimensions x and y when performing the maximum projection. Defaults to 1 so no downsampling.
+
+    Returns:
+        np.ndarray: 2D projected image. 
+    """
     #max projection aka. z-max
     IM_MAX = limg[0][::ndown,::ndown]
-    for n in np.arange(1,len(limg),ndown): #ndown here for low variation on Z
+    for n in np.arange(1, len(limg),ndown): #ndown here for low variation on Z
         IM_MAX = np.maximum(IM_MAX, (limg[n][::ndown,::ndown]))
     return IM_MAX
 
 
-def processing(data_path, output_path, area_opening_param=500, area_closing_param=200, disk_radius=4):
+def processing(data_path: str, 
+               output_path: str, 
+               area_opening_param: int = 500, 
+               area_closing_param: int = 200, 
+               disk_radius: int = 4):
+    """
+    Perform post-processing on predictions for noise removal, using the convex hull method and morphological operations. 
+
+    Args:
+        data_path (str): Data directory
+        output_path (str): Directory where processed predictions will be saved
+        area_opening_param (int, optional): minimum area of objects to retain when (eroding, dilating). Defaults to 500.
+        area_closing_param (int, optional): minimum area of objects to fill when (dilating, eroding). Defaults to 200.
+        disk_radius (int, optional): radius of the disk object to use when applying morphological operations. Defaults to 4.
+
+    Returns: None
+    """
     element = disk(disk_radius)
 
     for e in tqdm(sorted([e for e in os.listdir(data_path) if not e.startswith(".")])):

@@ -13,24 +13,42 @@ import re
 from tqdm import tqdm
 
 from utils import get_image_paths
+from typing import Dict, Tuple, Sequence 
 
 
 def parse_prepare_variables(argparse_args):
-    """ Merges parameters from json config file and argparse, then parses/modifies parameters a bit"""
+    """ 
+    Parse and merge training variables from a JSON configuration file and command-line arguments.
+
+    Args:
+        argparse_args (Namespace): Command-line arguments parsed by argparse.
+
+    Returns:
+        Dict: Updated arguments 
+    """
     args = vars(argparse_args)
     with open(args["config_file"]) as file_json:
         config_dict = json.load(file_json)
         args.update(config_dict)
 
-    args['train_patch_size'] = tuple(args['train_patch_size'])  # tuple expected, not list
-    args['step_size'] = tuple(args['step_size'])  # tuple expected, not list
+    args['train_patch_size'] = tuple(args['train_patch_size'])  
+    args['step_size'] = tuple(args['step_size']) 
     return args
 
 
-def prepare_patches(args):
-    """Crops training images in smaller slices """
+def prepare_patches(args: Dict):
+    """
+    Create small size patches with the patch size and sliding windiw size given in the ``prepare_patches`` configuration file
+
+    Args:
+        args (Dict): dictionary of all processing arguments 
+
+    Returns:
+        None: save the image in the specified folder 
+    """
 
 
+    
     image_dir = os.path.join(args['save_path'], "images")
     label_dir = os.path.join(args['save_path'], "labels")
     for folder in [image_dir, label_dir]:
@@ -42,12 +60,13 @@ def prepare_patches(args):
 
     path_images = get_image_paths(args['images_path'])
     path_labels = get_image_paths(args['labels_path'])
-    print(len(path_images), len(path_labels))
+    print("Number of images: {} \n Number of labels: {}".format(len(path_images), len(path_labels)))
 
     '''
-    The following code puts aside m images and labels given that the random split of patches in the training
-    builds train/val/test sets that could each contain patches of the same image. 
-    That option puts aside 'unseen' full-size images
+    Note: 
+        The following code puts aside m images and labels given that the random split of patches in the training
+        builds train/val/test sets that could each contain patches of the same image. 
+        That option puts aside `unseen` full-size images.
     '''
 
     n = len(path_images)
