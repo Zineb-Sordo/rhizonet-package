@@ -1,5 +1,5 @@
 """
-Script for runing inference using a pre-trained residual U-Net model for image segmentation.
+Script for running inference using a pre-trained residual U-Net model for image segmentation.
 
 Usage:
     python predict.py --config_file ./setup_files/setup-predict.json 

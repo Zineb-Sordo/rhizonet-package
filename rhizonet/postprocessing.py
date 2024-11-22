@@ -1,5 +1,5 @@
 """
-Script for applying postprocessing methods to infered predictions using a the convex hull method as well as morphological operations. 
+Script for applying postprocessing methods to inferred predictions using a the convex hull method as well as morphological operations. 
 
 Usage:
     python postprocessing.py --config_file ./setup_files/setup-processing.json 

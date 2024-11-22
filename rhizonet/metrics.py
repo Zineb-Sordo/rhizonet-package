@@ -66,7 +66,7 @@ def main(
         pred_path: str, 
         label_path: str, 
         log_dir: str,
-        fg_index: int) -> None:
+        task: str) -> None:
     """
     Reads the prediction and groundtruth images, evaluates the metrics Accuracy, Precision, Recall and IOU.
     Saves results in `metrics.json` file in the specified `log_dir`. 
@@ -78,14 +78,14 @@ def main(
         pred_path (str): filepath of the predicted image
         label_path (str): filepath of the groundtruth image
         log_dir (str): filepath where results will be saved in a json file
-        fg_index (int): if binary mask used then specify the foreground object index e.g. the root is labeled with the value 85.
+        task (int): type of segmentation task if processing binary segmentation masks or multiclass segmentation images (e.g. `binary` or `multiclass`)
     """
     pred_list = sorted([os.path.join(pred_path, e) for e in os.listdir(pred_path) if not e.startswith(".")])
     label_list = sorted([os.path.join(label_path, e) for e in os.listdir(label_path) if not e.startswith(".")])
     dict_metrics = {}
 
 
-    # if number of classes in the prediction is 2 then binary else multiclass with number of classe len(labels)
+    # if number of classes in the prediction is 2 then binary else multiclass with number of classes = len(labels)
     for pred_path, lab_path in zip(pred_list, label_list):
         pred = io.imread(pred_path)
         lab = io.imread(lab_path)
@@ -94,33 +94,19 @@ def main(
         if np.min(pred) >= 0 and np.max(pred) <= 255:
             pred = torch.Tensor(pred/255.0)
 
-        labels = np.unique(pred)
+        labels = np.unique(lab)
         num_classes = len(labels)
+        lab = torch.Tensor(MapImage(lab, labels))
+        num_classes = len(labels)
+        dict_metrics[filename] = {}
+        acc, prec, rec, iou, dice = evaluate_all_metrics(pred, lab, task=task, num_classes=num_classes)
+        dict_metrics[filename]['accuracy'] = acc
+        dict_metrics[filename]['precision'] = prec
+        dict_metrics[filename]['recall'] = rec
+        dict_metrics[filename]['IOU'] = iou
+        dict_metrics[filename]['Dice'] = dice
 
-        if num_classes == 2: # binary segmentation mask
-            lab = torch.Tensor(MapImage(lab, (labels, [0, 1, 0])))
-
-            dict_metrics[filename] = {}
-            acc, prec, rec, iou, dice = evaluate_all_metrics(pred, lab)
-            dict_metrics[filename]['accuracy'] = acc
-            dict_metrics[filename]['precision'] = prec
-            dict_metrics[filename]['recall'] = rec
-            dict_metrics[filename]['IOU'] = iou
-            dict_metrics[filename]['Dice'] = dice
-
-        else: # multiclass segmetation prediction
-            
-            lab = torch.Tensor(MapImage(lab, (labels, list(range(num_classes)))))
-
-
-            dict_metrics[filename] = {}
-            acc, prec, rec, iou, dice = evaluate_all_metrics(pred,lab, num_classes=3, task='multiclass')
-            dict_metrics[filename]['accuracy'] = acc
-            dict_metrics[filename]['precision'] = prec
-            dict_metrics[filename]['recall'] = rec
-            dict_metrics[filename]['IOU'] = iou
-            dict_metrics[filename]['Dice'] = dice
-                                                                                                                                                                                                                                                    
+                                                                                                                                                                                           
 
     # print("Metrics: \n {}".format(dict_metrics))
     with open(os.path.join(log_dir, 'metrics.json'), 'w') as f:
@@ -140,10 +126,11 @@ if __name__ == '__main__':
                         default="/home/zsordo/rhizonet-fovea/results/training_patches64_ex7ex9_batch32_dropout40",
                         help="path where the json file containing results will be saved")
     
-    parser.add_argument("--fg_index",
-                        default=85,
-                        help="if binary mask used then specify the foreground object index")
+    parser.add_argument("--task",
+                        default='binary',
+                        choices=['binary', 'multiclass'],
+                        help="type of segmentation task if processing binary segmentation masks or multiclass segmentation images")
     args = parser.parse_args()
     args = vars(args)
-    main(args['pred_path'], args ['label_path'], args['log_dir'], args['fg_index'])
+    main(args['pred_path'], args ['label_path'], args['log_dir'], args['task'])
 

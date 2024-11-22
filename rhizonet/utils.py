@@ -8,6 +8,7 @@ from skimage import exposure
 from skimage import io, filters, measure
 from scipy import ndimage as ndi
 from typing import Union, List, Tuple, Sequence, Dict
+from monai.transforms import MapLabelValued
 
 
 def extract_largest_component_bbox_image(img: Union[np.ndarray, torch.Tensor], 
@@ -145,16 +146,16 @@ def get_weights(
     return class_weights
 
 
-# the alternative is to use MapLabelValued(["label"], [0, 85, 170],[0, 1, 2])
-def MapImage(image: Union[np.ndarray, torch.Tensor], 
-             value_map: Tuple[Sequence[int], Sequence[int]]
-             ) -> Union[np.ndarray, torch.Tensor]:
+def MapImage(
+        image: Union[np.ndarray, torch.Tensor], 
+        original_values: List[int]
+        ) -> Union[np.ndarray, torch.Tensor]:
     """
     Maps the current values of a given input image to the values given by the tuple (current values, new values).
 
     Args:
         image (Union[np.ndarray, torch.Tensor]): The input image to transform
-        value_map (Tuple[Sequence[int], Sequence[int]]): Dictionary of values to be mapped
+        original_values (List[int]): List of original values to be mapped
 
     Raises:
         TypeError: If the input image is neither a numpy array or a torch tensor
@@ -163,7 +164,8 @@ def MapImage(image: Union[np.ndarray, torch.Tensor],
         Union[np.ndarray, torch.Tensor]: the transformed input after mapping.
     
     Example::
-        transformed_image = MapImage(image, ([0, 85, 170], [0, 1, 2]))
+        transformed_image = MapImage(image, [0, 85, 170])
+        The values will be mapped to [0, 1, 2] with the first value of the original values specified being the background index. 
     """
     if isinstance(image, np.ndarray) :      
         data = image.copy()
@@ -171,10 +173,15 @@ def MapImage(image: Union[np.ndarray, torch.Tensor],
         data = image.detach()
     else:
         raise TypeError("Input must be a numpy.ndarray, torch.Tensor")
-    keys, values = [str(e) for e in value_map[0]], value_map[1]
-    for key, value in zip(keys, values):
-        data[data == int(key)] = value
-    return data
+    
+    target_values = list(range(len(original_values)))
+
+    # Create the transform
+    map_label_transform = MapLabelValued(keys=["label"], orig_label_values=original_values, target_label_values=target_values)
+
+    # Apply the transform
+    mapped_label_image = map_label_transform({"label": data})["label"]
+    return mapped_label_image
 
 
 def elliptical_crop(img: np.ndarray, 
