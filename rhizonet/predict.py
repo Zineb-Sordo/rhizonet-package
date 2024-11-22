@@ -197,7 +197,7 @@ def predict_model(args: Dict):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(conflict_handler='resolve', description='Run inference using trained model')
     parser.add_argument("--config_file", type=str,
-                        default="setup_files/setup-predict2d.json",
+                        default="setup_files/setup-predict.json",
                         help="json file training data parameters")
     parser.add_argument("--gpus", type=int, default=None, help="how many gpus to use")
     args = parser.parse_args()

@@ -147,14 +147,14 @@ def get_weights(
 
 # the alternative is to use MapLabelValued(["label"], [0, 85, 170],[0, 1, 2])
 def MapImage(image: Union[np.ndarray, torch.Tensor], 
-             value_map: Tuple[List[int], List[int]]
+             value_map: Tuple[Sequence[int], Sequence[int]]
              ) -> Union[np.ndarray, torch.Tensor]:
     """
     Maps the current values of a given input image to the values given by the tuple (current values, new values).
 
     Args:
         image (Union[np.ndarray, torch.Tensor]): The input image to transform
-        value_map (Tuple[List[int], List[int]]): Dictionary of values to be mapped
+        value_map (Tuple[Sequence[int], Sequence[int]]): Dictionary of values to be mapped
 
     Raises:
         TypeError: If the input image is neither a numpy array or a torch tensor

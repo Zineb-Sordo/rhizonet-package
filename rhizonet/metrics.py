@@ -1,12 +1,41 @@
+"""
+Script for evaluation metrics on a given set of predictions and groundtruth. 
+The metrics used are Accuracy, Precision, Recall and IOU. 
+
+Usage:
+    python metrics.py ---pred_path "path" --label_path "path" --log_dir "path"
+"""
+
 import os
 import torch
 import json 
 import numpy as np
+from argparse import ArgumentParser
 import torchmetrics
 from skimage import io
-from utils import createBinaryAnnotation, transform_annot
+from utils import createBinaryAnnotation, MapImage
+from typing import Tuple, Sequence, List
 
-def evaluate_all_metrics(pred, target, task='binary', num_classes=3, background_index=0):
+
+def evaluate_all_metrics(
+        pred: torch.Tensor, 
+        target: torch.Tensor,  
+        task: str = 'binary', 
+        num_classes: int = 2, 
+        background_index: int = 0) -> Tuple[float, float, float, float]:
+    """
+    Evaluate Accuracy, Precision, Recall and IOU based on prediction and groundtruth and for a given ask (e.g. `binary`)
+
+    Args:
+        pred (torch.Tensor): predicted image
+        target (torch.Tensor): groundtruth image
+        task (str, optional): type of classification for each pixel (binary or multi-class). Defaults to 'binary'.
+        num_classes (int, optional): number of classes. Defaults to 3.
+        background_index (int, optional): index value associated to the background. Defaults to 0.
+
+    Returns:
+        Tuple[float, float, float, float]: averaged accuracy, precision, recall and IOU
+    """
 
     cnfmat = torchmetrics.ConfusionMatrix(
                                         num_classes=num_classes,
@@ -33,32 +62,88 @@ def evaluate_all_metrics(pred, target, task='binary', num_classes=3, background_
     return acc.item(), precision.item(), recall.item(), iou.item(), dice.item()
 
 
-def main(pred_path, label_path, log_dir):
+def main(
+        pred_path: str, 
+        label_path: str, 
+        log_dir: str,
+        fg_index: int) -> None:
+    """
+    Reads the prediction and groundtruth images, evaluates the metrics Accuracy, Precision, Recall and IOU.
+    Saves results in `metrics.json` file in the specified `log_dir`. 
+    There are 2 options:
+        - evaluate metrics on multi-class prediction
+        - evaluate metrics on binary segmentation mask (e.g. if the prediction is processed into a binary mask with root as foreground and the rest labeled as background.)
+
+    Args:
+        pred_path (str): filepath of the predicted image
+        label_path (str): filepath of the groundtruth image
+        log_dir (str): filepath where results will be saved in a json file
+        fg_index (int): if binary mask used then specify the foreground object index e.g. the root is labeled with the value 85.
+    """
     pred_list = sorted([os.path.join(pred_path, e) for e in os.listdir(pred_path) if not e.startswith(".")])
     label_list = sorted([os.path.join(label_path, e) for e in os.listdir(label_path) if not e.startswith(".")])
     dict_metrics = {}
-    for pred,lab in zip(pred_list, label_list):
 
-        # if we want to run evaluation on binary masks with root vs background only
-        pred,lab= torch.tensor(transform_annot(io.imread(pred), value_map={"0":"0", "255":"1"})), torch.tensor(transform_annot(io.imread(lab), value_map={"0":"0", "85":"1", "170":"0"}))
-       
-        # dict_metrics["preds_path"] = pred
-        # dict_metrics["label_path"] = lab
-        filename = os.path.basename(pred)
-        dict_metrics[filename] = {}
-        acc, prec, rec, iou, dice = evaluate_all_metrics(pred,lab)
-        dict_metrics[filename]['accuracy'] = acc
-        dict_metrics[filename]['precision'] = prec
-        dict_metrics[filename]['recall'] = rec
-        dict_metrics[filename]['IOU'] = iou
-        dict_metrics[filename]['Dice'] = dice
+
+    # if number of classes in the prediction is 2 then binary else multiclass with number of classe len(labels)
+    for pred_path, lab_path in zip(pred_list, label_list):
+        pred = io.imread(pred_path)
+        lab = io.imread(lab_path)
+
+        # Check if prediction is scaled by 255 for visualization 
+        if np.min(pred) >= 0 and np.max(pred) <= 255:
+            pred = torch.Tensor(pred/255.0)
+
+        labels = np.unique(pred)
+        num_classes = len(labels)
+
+        if num_classes == 2: # binary segmentation mask
+            lab = torch.Tensor(MapImage(lab, (labels, [0, 1, 0])))
+
+            dict_metrics[filename] = {}
+            acc, prec, rec, iou, dice = evaluate_all_metrics(pred, lab)
+            dict_metrics[filename]['accuracy'] = acc
+            dict_metrics[filename]['precision'] = prec
+            dict_metrics[filename]['recall'] = rec
+            dict_metrics[filename]['IOU'] = iou
+            dict_metrics[filename]['Dice'] = dice
+
+        else: # multiclass segmetation prediction
+            
+            lab = torch.Tensor(MapImage(lab, (labels, list(range(num_classes)))))
+
+
+            dict_metrics[filename] = {}
+            acc, prec, rec, iou, dice = evaluate_all_metrics(pred,lab, num_classes=3, task='multiclass')
+            dict_metrics[filename]['accuracy'] = acc
+            dict_metrics[filename]['precision'] = prec
+            dict_metrics[filename]['recall'] = rec
+            dict_metrics[filename]['IOU'] = iou
+            dict_metrics[filename]['Dice'] = dice
+                                                                                                                                                                                                                                                    
+
     # print("Metrics: \n {}".format(dict_metrics))
     with open(os.path.join(log_dir, 'metrics.json'), 'w') as f:
         json.dump(dict_metrics, f)
+
+        filename = os.path.basename(pred)
+        
             
-# if __name__ == '__main__':
-#     pred_path = ".results/training_patches64_ex7ex9_batch32_dropout40/predictions/"
-#     label_path = "/home/zsordo/datasets/test_data/labels/"
-#     log_dir = "/home/zsordo/rhizonet-fovea/results/training_patches64_ex7ex9_batch32_dropout40"
-#     main(pred_path, label_path, log_dir)
+if __name__ == '__main__':
+    parser = ArgumentParser(conflict_handler='resolve', description='Run inference using trained model')
+    parser.add_argument("--pred_path", type=str,
+                        default=".results/training_patches64_ex7ex9_batch32_dropout40/predictions/",
+                        help="path to the predictions")
+    parser.add_argument("--label_path", 
+                        default="path to the groundtruth")
+    parser.add_argument("--log_dir",
+                        default="/home/zsordo/rhizonet-fovea/results/training_patches64_ex7ex9_batch32_dropout40",
+                        help="path where the json file containing results will be saved")
+    
+    parser.add_argument("--fg_index",
+                        default=85,
+                        help="if binary mask used then specify the foreground object index")
+    args = parser.parse_args()
+    args = vars(args)
+    main(args['pred_path'], args ['label_path'], args['log_dir'], args['fg_index'])
 
