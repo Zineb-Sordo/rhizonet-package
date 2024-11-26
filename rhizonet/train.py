@@ -23,13 +23,13 @@ import pytorch_lightning as pl
 from skimage import io, color
 from argparse import Namespace
 
-from unet2D import Unet2D, ImageDataset, PredDataset2D
-from simpleLogger import mySimpleLogger
+from .unet2D import Unet2D, ImageDataset, PredDataset2D
+from .simpleLogger import mySimpleLogger
 from monai.data import list_data_collate
 from lightning.pytorch.loggers import WandbLogger 
-from utils import MapImage, createBinaryAnnotation, get_image_paths
+from .utils import MapImage, createBinaryAnnotation, get_image_paths
 
-import metrics
+from .metrics import evaluate
 
 
 def _parse_training_variables(argparse_args):
@@ -182,7 +182,7 @@ def train_model(args):
         io.imsave(os.path.join(pred_path, fname), binary_mask, check_contrast=False)
 
     # Evaluate metrics on full size test images 
-    metrics.main(pred_path, pred_lab_path, log_dir)
+    evaluate(pred_path, pred_lab_path, log_dir)
         
 
 if __name__ == "__main__":

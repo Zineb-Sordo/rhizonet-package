@@ -5,7 +5,7 @@
 
 import unittest
 
-from rhizonet import rhizonet
+from rhizonet import train, unet2D, predict, postprocessing, prepare_patches, metrics
 
 
 class TestRhizonet(unittest.TestCase):

@@ -15,24 +15,29 @@ def extract_largest_component_bbox_image(img: Union[np.ndarray, torch.Tensor],
                                          lab: Union[np.ndarray, torch.Tensor] = None, 
                                          predict: bool = False) -> Union[np.ndarray, torch.Tensor, Tuple[Union[np.ndarray, torch.Tensor], str]]:
     """
-    Extract the largest connected component (LCC) of the given image and gets the bounding box associated to this LCC and then either:
-        - crops the image to the bounding box
-        - applies a binary mask to the image and maintains the same shape as the input image with everything but the LCC set as black background
-    This function can be applied to both the image and the annotation if available
+    Extract the largest connected component (LCC) of the given image and get the bounding box associated with this LCC. Depending on the input parameters, it can either:
+
+    - Crop the image to the bounding box.
+    - Apply a binary mask to the image, maintaining the same shape as the input image, with everything but the LCC set as a black background.
+
+    This function can be applied to both the image and the annotation (label) if provided.
 
     Args:
-        img ([Union[numpy.ndarray, torch.Tensor]]): The input image. 
-            - NumPy array or PyTorch tensor: Shape can be (C, H, W) or  (B, C, H, W) if batch dimension included
-            - None (default): If None, the function raises a ValueError.
-        lab (Union[np.ndarray, torch.Tensor], optional): The label or annotated image. Defaults to None.
-        predict (bool, optional): _description_. Defaults to False.
+        img (Union[numpy.ndarray, torch.Tensor]): 
+            The input image. 
+            - Can be a NumPy array or PyTorch tensor with shape (C, H, W) or (B, C, H, W) if a batch dimension is included.
+            - Must not be None; if None, the function raises a ValueError.
+        lab (Union[numpy.ndarray, torch.Tensor], optional): 
+            The label or annotated image. Defaults to None.
+        predict (bool, optional): 
+            A flag indicating whether the function is used for prediction. Defaults to False.
 
     Returns:
-        Union[numpy.ndarray, torch.Tensor, Tuple[Union[numpy.ndarray, torch.Tensor], Union[numpy.ndarray, torch.Tensor]]]:
-            - If label is None: A NumPy array or PyTorch tensor representing the image only.
-            - If label is available: A tuple containing:
-                - An image (NumPy array or PyTorch tensor).
-                - A label image (NumPy array or PyTorch tensor).
+        Union[numpy.ndarray, torch.Tensor, Tuple[Union[numpy.ndarray, torch.Tensor], Union[numpy.ndarray, torch.Tensor]]]: 
+            - If `lab` is None: Returns the processed image as a NumPy array or PyTorch tensor.
+            - If `lab` is provided: Returns a tuple containing:
+                - The processed image (NumPy array or PyTorch tensor).
+                - The processed label image (NumPy array or PyTorch tensor).
     """
 
     if img is None:

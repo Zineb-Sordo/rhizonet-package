@@ -21,7 +21,7 @@ import glob
 import re
 from tqdm import tqdm
 
-from utils import get_image_paths
+from .utils import get_image_paths
 from typing import Dict, Tuple, Sequence 
 
 

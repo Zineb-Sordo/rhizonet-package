@@ -21,9 +21,9 @@ import torchmetrics
 import matplotlib.pyplot as plt
 from scipy import ndimage as ndi
 from skimage.color import rgb2lab
-from unet2D import Unet2D
+from .unet2D import Unet2D
 
-from unet2D import PredDataset2D, ImageDataset, tiff_reader
+from .unet2D import PredDataset2D, ImageDataset, tiff_reader
 from monai.data import ArrayDataset, create_test_image_2d, list_data_collate, decollate_batch
 from monai.inferers import sliding_window_inference
 from monai.transforms import (
@@ -32,7 +32,7 @@ from monai.transforms import (
     EnsureType
 )
 
-from utils import MapImage, createBinaryAnnotation, extract_largest_component_bbox_image
+from .utils import MapImage, createBinaryAnnotation, extract_largest_component_bbox_image
 from PIL import ImageDraw
 import torchvision.transforms.functional as TF
 from datetime import datetime

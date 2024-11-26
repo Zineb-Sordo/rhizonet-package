@@ -13,7 +13,7 @@ from torchviz import make_dot
 import neptune
 from neptune.types import File
 
-from utils import get_weights, MapImage
+from .utils import get_weights, MapImage
 import torchmetrics
 from monai.data import list_data_collate
 from monai.networks.nets import UNet, SwinUNETR
@@ -25,8 +25,8 @@ from skimage import io, color
 from skimage.color import rgb2gray, rgb2lab
 from skimage.morphology import disk, dilation
 
-from utils import get_weights, extract_largest_component_bbox_image
-from utils import get_image_paths, contrast_img
+from .utils import get_weights, extract_largest_component_bbox_image
+from .utils import get_image_paths, contrast_img
 
 from PIL import Image
 import torch
@@ -231,39 +231,38 @@ class Unet2D(pl.LightningModule):
         Args:
             train_ds (Dataset): Training dataset
             val_ds (Dataset): Validation dataset
-            **kwargs: Additional keyword arguments for model configuration (e.g. model parameters).
 
-        Examples::
+        Example: 
 
-        from monai.networks.nets import UNet, SwinUNETR
+        >>> from monai.networks.nets import UNet, SwinUNETR
 
-        # 5 layers each down/up sampling their inputs by a factor 2 with residual blocks
-        model = UNet(
-                spatial_dims=2,
-                in_channels=3,
-                out_channels=3,
-                channels=(32, 64, 128, 256, 512),
-                strides=(2, 2, 2, 2),
-                kernel_size=3,
-                up_kernel_size=3,
-                num_res_units=2,
-                dropout=0.4,
-                norm=Norm.BATCH,
-            )
+        >>> # 5 layers each down/up sampling their inputs by a factor 2 with residual blocks
+        >>> model = UNet(
+        >>>     spatial_dims=2,
+        >>>     in_channels=3,
+        >>>     out_channels=3,
+        >>>     channels=(32, 64, 128, 256, 512),
+        >>>     strides=(2, 2, 2, 2),
+        >>>     kernel_size=3,
+        >>>     up_kernel_size=3,
+        >>>     num_res_units=2,
+        >>>     dropout=0.4,
+        >>>     norm=Norm.BATCH,
+        >>>     )
 
-        # SwinUNETR model with 3D inputs and batch normalization
-        model = SwinUNETR(
-                spatial_dims=3,
-                img_size=(256, 256, 256),
-                in_channels=3,
-                out_channels=3,
-                feature_size=48,
-                num_heads=[3, 6, 12, 24, 12] ,
-                depths=[2, 4, 8, 16, 24] ,
-                drop_rate=0.4,
-                attn_drop_rate=0.2,
-                norm_name='batch'
-            )
+        >>> # SwinUNETR model with 3D inputs and batch normalization
+        >>> model = SwinUNETR(
+        >>>     spatial_dims=3,
+        >>>     img_size=(256, 256, 256),
+        >>>     in_channels=3,
+        >>>     out_channels=3,
+        >>>     feature_size=48,
+        >>>     num_heads=[3, 6, 12, 24, 12] ,
+        >>>     depths=[2, 4, 8, 16, 24] ,
+        >>>     drop_rate=0.4,
+        >>>     attn_drop_rate=0.2,
+        >>>     norm_name='batch'
+        >>>     )
         """
         super(Unet2D, self).__init__()
 
@@ -337,6 +336,12 @@ class Unet2D(pl.LightningModule):
         return self.model(x.to(device))
 
     def train_dataloader(self):
+        """
+        Creates and returns the DataLoader for the training dataset.
+
+        Returns:
+            DataLoader: A PyTorch DataLoader for the training dataset.
+        """
         train_loader = torch.utils.data.DataLoader(
             self.train_ds, batch_size=self.hparams.batch_size, shuffle=True,
             collate_fn=list_data_collate, num_workers=self.hparams.num_workers,
@@ -344,6 +349,12 @@ class Unet2D(pl.LightningModule):
         return train_loader
 
     def val_dataloader(self):
+        """
+        Creates and returns the DataLoader for the validation dataset.
+
+        Returns:
+            DataLoader: A PyTorch DataLoader for the validation dataset.
+        """
         val_loader = torch.utils.data.DataLoader(
             self.val_ds, batch_size=self.hparams.batch_size, shuffle=False,
             collate_fn=list_data_collate, num_workers=self.hparams.num_workers,

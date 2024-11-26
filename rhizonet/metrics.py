@@ -13,18 +13,17 @@ import numpy as np
 from argparse import ArgumentParser
 import torchmetrics
 from skimage import io
-from utils import createBinaryAnnotation, MapImage
+from .utils import createBinaryAnnotation, MapImage
 from typing import Tuple, Sequence, List
 
 
-def evaluate_all_metrics(
-        pred: torch.Tensor, 
-        target: torch.Tensor,  
-        task: str = 'binary', 
-        num_classes: int = 2, 
-        background_index: int = 0) -> Tuple[float, float, float, float]:
+def calculate_all_metrics(pred: torch.Tensor, 
+                         target: torch.Tensor,  
+                         task: str = 'binary', 
+                         num_classes: int = 2, 
+                         background_index: int = 0) -> Tuple[float, float, float, float]:
     """
-    Evaluate Accuracy, Precision, Recall and IOU based on prediction and groundtruth and for a given ask (e.g. `binary`)
+    Evaluate Accuracy, Precision, Recall and IOU based on prediction and groundtruth and for a given ask (e.g. `binary`).
 
     Args:
         pred (torch.Tensor): predicted image
@@ -62,17 +61,13 @@ def evaluate_all_metrics(
     return acc.item(), precision.item(), recall.item(), iou.item(), dice.item()
 
 
-def main(
-        pred_path: str, 
-        label_path: str, 
-        log_dir: str,
-        task: str) -> None:
+def evaluate(pred_path: str, label_path: str, log_dir: str, task: str) -> None:
     """
     Reads the prediction and groundtruth images, evaluates the metrics Accuracy, Precision, Recall and IOU.
     Saves results in `metrics.json` file in the specified `log_dir`. 
-    There are 2 options:
-        - evaluate metrics on multi-class prediction
-        - evaluate metrics on binary segmentation mask (e.g. if the prediction is processed into a binary mask with root as foreground and the rest labeled as background.)
+    There are 2 options: 
+    - evaluate metrics on multi-class prediction.
+    - evaluate metrics on binary segmentation mask (e.g. if the prediction is processed into a binary mask with root as foreground and the rest labeled as background.)
 
     Args:
         pred_path (str): filepath of the predicted image
@@ -99,7 +94,7 @@ def main(
         lab = torch.Tensor(MapImage(lab, labels))
         num_classes = len(labels)
         dict_metrics[filename] = {}
-        acc, prec, rec, iou, dice = evaluate_all_metrics(pred, lab, task=task, num_classes=num_classes)
+        acc, prec, rec, iou, dice = calculate_all_metrics(pred, lab, task=task, num_classes=num_classes)
         dict_metrics[filename]['accuracy'] = acc
         dict_metrics[filename]['precision'] = prec
         dict_metrics[filename]['recall'] = rec
@@ -132,5 +127,5 @@ if __name__ == '__main__':
                         help="type of segmentation task if processing binary segmentation masks or multiclass segmentation images")
     args = parser.parse_args()
     args = vars(args)
-    main(args['pred_path'], args ['label_path'], args['log_dir'], args['task'])
+    evaluate(args['pred_path'], args ['label_path'], args['log_dir'], args['task'])
 
