@@ -13,7 +13,6 @@ from torchviz import make_dot
 import neptune
 from neptune.types import File
 
-from .utils import get_weights, MapImage
 import torchmetrics
 from monai.data import list_data_collate
 from monai.networks.nets import UNet, SwinUNETR
@@ -24,9 +23,6 @@ from monai.losses import DiceLoss
 from skimage import io, color
 from skimage.color import rgb2gray, rgb2lab
 from skimage.morphology import disk, dilation
-
-from .utils import get_weights, extract_largest_component_bbox_image
-from .utils import get_image_paths, contrast_img
 
 from PIL import Image
 import torch
@@ -56,6 +52,15 @@ from monai.transforms import (
     SpatialPadd
 
 )
+
+# Import parent modules
+try:
+    from .utils import get_weights, extract_largest_component_bbox_image, MapImage
+    from .utils import get_image_paths, contrast_img
+except ImportError:
+    from utils import get_weights, extract_largest_component_bbox_image, MapImage
+    from utils import get_image_paths, contrast_img
+
 
 class tiff_reader(MapTransform):
     """

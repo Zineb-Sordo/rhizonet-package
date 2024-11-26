@@ -23,13 +23,23 @@ import pytorch_lightning as pl
 from skimage import io, color
 from argparse import Namespace
 
-from .unet2D import Unet2D, ImageDataset, PredDataset2D
-from .simpleLogger import mySimpleLogger
+
 from monai.data import list_data_collate
 from lightning.pytorch.loggers import WandbLogger 
-from .utils import MapImage, createBinaryAnnotation, get_image_paths
 
-from .metrics import evaluate
+
+# Import parent modules
+try:
+    from .utils import MapImage, createBinaryAnnotation, get_image_paths
+    from .metrics import evaluate
+    from .unet2D import Unet2D, ImageDataset, PredDataset2D
+    from .simpleLogger import mySimpleLogger
+except ImportError:
+    from utils import MapImage, createBinaryAnnotation, get_image_paths
+    from metrics import evaluate
+    from unet2D import Unet2D, ImageDataset, PredDataset2D
+    from simpleLogger import mySimpleLogger
+
 
 
 def _parse_training_variables(argparse_args):

@@ -21,8 +21,12 @@ import glob
 import re
 from tqdm import tqdm
 
-from .utils import get_image_paths
 from typing import Dict, Tuple, Sequence 
+
+try:
+    from .utils import get_image_paths
+except ImportError:
+    from utils import get_image_paths
 
 
 def parse_prepare_variables(argparse_args):

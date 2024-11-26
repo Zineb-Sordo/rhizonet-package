@@ -13,8 +13,13 @@ import numpy as np
 from argparse import ArgumentParser
 import torchmetrics
 from skimage import io
-from .utils import createBinaryAnnotation, MapImage
 from typing import Tuple, Sequence, List
+
+try:
+    from .utils import createBinaryAnnotation, MapImage
+except ImportError:
+    from utils import createBinaryAnnotation, MapImage
+
 
 
 def calculate_all_metrics(pred: torch.Tensor, 
