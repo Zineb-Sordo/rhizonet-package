@@ -56,8 +56,8 @@ def extract_largest_component_bbox_image(img: Union[np.ndarray, torch.Tensor],
     # else:
     #     image = img[2, ...]
 
-    # if img.device.type == "cuda":
-        # img = img.cpu().numpy()
+    if img.device.type == "cuda":
+        img = img.cpu().numpy()
     
     # Remove dimension if there is a batch dim and format is (B, C, H, W)
     image = img.squeeze(0)[2, ...]
