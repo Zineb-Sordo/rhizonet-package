@@ -182,7 +182,7 @@ def MapImage(
     target_values = list(range(len(original_values)))
 
     # Create the transform
-    map_label_transform = MapLabelValued(keys=["label"], orig_label_values=original_values, target_label_values=target_values)
+    map_label_transform = MapLabelValued(["label"], original_values, target_values)
 
     # Apply the transform
     mapped_label_image = map_label_transform({"label": data})["label"]
