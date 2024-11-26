@@ -182,7 +182,7 @@ def train_model(args):
     pred_path = os.path.join(log_dir, 'predictions')
     os.makedirs(pred_path, exist_ok=True)
 
-    labels = dataset_params['labels']
+    labels = dataset_params['class_values']
     for (pred, _, fname) in predictions:
         pred = MapImage(pred, labels)
         pred = pred.numpy().squeeze().astype(np.uint8)
