@@ -60,6 +60,7 @@ exclude_patterns = []
 html_theme = "sphinx_rtd_theme"
 
 html_style = 'custom.css'
+pygments_style = 'sphinx'
 
 # MyST extensions
 myst_enable_extensions = ['colon_fence']
