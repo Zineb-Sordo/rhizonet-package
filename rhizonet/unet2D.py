@@ -119,6 +119,8 @@ class ImageDataset(Dataset):
         self.scale_range = args['scale_range']
         self.shear_range = args['shear_range']
         self.class_values = args['class_values']
+        print(self.class_values, "class_values")
+        print(list(range(len(self.class_values))))
         self.image_col = args["image_col"]
         self.input_channels = args['input_channels']
         self.target_size = args['patch_size']

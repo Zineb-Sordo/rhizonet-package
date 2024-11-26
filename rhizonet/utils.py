@@ -140,12 +140,10 @@ def get_weights(
     labels = labels.to(device)
     if not include_background:
         classes.remove(0)
-    print(labels.shape, "labels")
+    print(torch.unique(labels))
     flat_labels = labels.view(-1)
     n = len(classes)
-    print(n, "n")
     class_counts = torch.bincount(flat_labels)
-    print(class_counts, "class_count")
     class_weights = torch.zeros_like(class_counts, dtype=torch.float)
     class_weights[class_counts.nonzero()] = 1 / class_counts[class_counts.nonzero()]
     class_weights /= class_weights.sum()
