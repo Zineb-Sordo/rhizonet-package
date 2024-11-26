@@ -157,7 +157,7 @@ def get_prediction(
     """
 
     prediction = predict_step(file, unet, pred_patch_size).squeeze(0)
-    prediction = MapImage(prediction, (list(range(len(labels))), labels))
+    prediction = MapImage(prediction, labels)
     pred = prediction.cpu().numpy().squeeze().astype(np.uint8)
     # pred_img, mask = elliptical_crop(pred, 1000, 1500, width=1400, height=2240)
     binary_mask = createBinaryAnnotation(pred).astype(np.uint8)
