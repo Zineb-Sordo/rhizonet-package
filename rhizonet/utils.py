@@ -120,7 +120,8 @@ def extract_largest_component_bbox_image(img: Union[np.ndarray, torch.Tensor],
 
 def get_weights(
         labels: torch.Tensor, 
-        classes: List[int], device: str, 
+        classes: List[int], 
+        device: str, 
         include_background=False,
         ) -> List[float]:
     """
