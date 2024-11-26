@@ -11,27 +11,6 @@
 -   Documentation: <https://zineb-sordo.github.io/rhizonet>
     
 
----
-banner: _static/landing.png
-banner_height: "40vh"
----
+## Features
 
-```{toctree}
----
-hidden: true
-maxdepth: 2
-caption: API
----
-api/preprocessing.md
-api/rhizonet.md
-api/training.md
-api/postprocessing.md
-api/predict.md
-api/evaluate.md
-
-
-```
-
-# RhizoNet
-
-Welcome to the documentation for RhizoNet.
+-   TODO
