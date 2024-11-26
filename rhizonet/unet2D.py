@@ -118,9 +118,7 @@ class ImageDataset(Dataset):
         self.rotate_range = args['rotate_range']
         self.scale_range = args['scale_range']
         self.shear_range = args['shear_range']
-        self.labels = args['labels']
-        print(self.labels, "labels")
-        print(list(range(len(self.labels))), "range")
+        self.class_values = args['class_values']
         self.image_col = args["image_col"]
         self.input_channels = args['input_channels']
         self.target_size = args['patch_size']
@@ -151,8 +149,8 @@ class ImageDataset(Dataset):
                         b_min=0.0, b_max=1.0, clip=True,
                     ),
                     MapLabelValued(["label"],
-                                    self.labels,
-                                    list(range(len(self.labels)))),
+                                    self.class_values,
+                                    list(range(len(self.class_values)))),
                     SqueezeDimd(keys=["label"], dim=0),
                     CastToTyped(keys=["label"], dtype=torch.long),
                     EnsureTyped(keys=["image", "label"])
@@ -184,8 +182,8 @@ class ImageDataset(Dataset):
                         scale_range=self.scale_range * np.ones(2)
                     ),
                     MapLabelValued(["label"],
-                                    self.labels,
-                                    list(range(len(self.labels)))),
+                                    self.class_values,
+                                    list(range(len(self.class_values)))),
                     SqueezeDimd(["label"], dim=0),
                     CastToTyped(keys=["label"], dtype=torch.long),
                     EnsureTyped(keys=["image", "label"])

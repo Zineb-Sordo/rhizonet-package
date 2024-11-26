@@ -62,7 +62,6 @@ def _parse_training_variables(argparse_args):
     dataset_args, model_args = args['dataset_params'], args['model_params']
     dataset_args['patch_size'] = tuple(dataset_args['patch_size'])  # tuple expected, not list
     model_args['pred_patch_size'] = tuple(model_args['pred_patch_size'])  # tuple expected, not list
-    dataset_args['labels'] = tuple(dataset_args['labels'])  # tuple expected, not list
 
     return args, dataset_args, model_args
 
