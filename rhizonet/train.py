@@ -184,7 +184,7 @@ def train_model(args):
 
     labels = dataset_params['labels']
     for (pred, _, fname) in predictions:
-        pred = MapImage(pred, (list(range(len(labels))), labels))
+        pred = MapImage(pred, labels)
         pred = pred.numpy().squeeze().astype(np.uint8)
         fname = os.path.basename(fname[0]).split('.')[0] + ".png"
         # pred_img, mask = elliptical_crop(pred, 1000, 1500, width=1400, height=2240)

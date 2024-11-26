@@ -6,6 +6,9 @@
 import unittest
 
 from rhizonet import train, unet2D, predict, postprocessing, prepare_patches, metrics
+from typing import List, Union, Sequence
+import numpy as np
+import torch 
 
 
 class TestRhizonet(unittest.TestCase):
