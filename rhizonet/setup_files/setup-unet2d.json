@@ -23,7 +23,7 @@
   },
   "dataset_params": {
     "input_channels": 3,
-    "class_values": [0, 85, 171],
+    "class_values": [0, 85, 170],
     "data_split": [
       0.8,
       0.1,

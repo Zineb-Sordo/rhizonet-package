@@ -140,7 +140,6 @@ def get_weights(
     labels = labels.to(device)
     if not include_background:
         classes.remove(0)
-    print(torch.unique(labels))
     flat_labels = labels.view(-1)
     n = len(classes)
     class_counts = torch.bincount(flat_labels)
