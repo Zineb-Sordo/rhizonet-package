@@ -49,7 +49,8 @@ from monai.transforms import (
     EnsureTyped,
     ScaleIntensityRange,
     EnsureType,
-    SpatialPadd
+    SpatialPadd,
+    Lambda
 
 )
 
@@ -76,11 +77,6 @@ class tiff_reader(MapTransform):
 
     def __call__(self, data_dict):
 
-        # Ensure image and label names match
-        raw_name = os.path.basename(data_dict['image']).split('.')[0]
-        annot_name = os.path.basename(data_dict['label']).split('.')[0].replace("Annotation", "")
-        assert raw_name == annot_name
-
         data = {}
         for key in self.keys:
             if key in data_dict:
@@ -88,7 +84,14 @@ class tiff_reader(MapTransform):
                     if self.image_col == 'cieLAB':
                         data[key] = rgb2lab(io.imread(data_dict[key]))  # cieLAB rep
                     else:
-                        data[key] = np.transpose(np.array(Image.open(data_dict[key]))[..., :3], (2, 0, 1))
+                        # data[key] = np.transpose(np.array(Image.open(data_dict[key]))[..., :3], (2, 0, 1))
+                        data[key] = np.array(Image.open(data_dict[key]))
+                        if data[key].ndim == 4 and data[key].shape[-1] <= 4:  # If shape is (h, w, d, c) assuming there are maximum 4 channels or modalities 
+                            data[key] = np.transpose(data[key], (3, 0, 1, 2))  # Move channel to the first position
+                        elif data[key].ndim == 3 and data[key].shape[-1] <= 4:  # If shape is (h, w, c)
+                            data[key] = np.transpose(data[key], (2, 0, 1))  # Move channel to the first position
+                        else:
+                            raise ValueError(f"Unexpected image shape: {data[key].shape}, channel dimension should be last and image should be either 2D or 3D")
                 elif key == "label":
                     data[key] = io.imread(data_dict[key])
                     if self.dilation:
@@ -96,9 +99,21 @@ class tiff_reader(MapTransform):
                     data[key] = np.expand_dims(data[key], axis=0)
         if self.boundingbox:
             data['image'], data['label'] = extract_largest_component_bbox_image(img=data['image'], lab=data['label'])
-
         return data
 
+
+# Dynamic scaling logic
+def dynamic_scale(image):
+    a_min, a_max = image.min(), image.max()
+    transform = ScaleIntensityRanged(
+        keys=["image"],
+        a_min=a_min,
+        a_max=a_max,
+        b_min=0.0,
+        b_max=1.0,
+        clip=True,
+    )
+    return transform({"image": image})["image"]
 
 class ImageDataset(Dataset):
     def __init__(self, data_fnames, label_fnames, args, training=False, prediction=False):
@@ -144,10 +159,7 @@ class ImageDataset(Dataset):
                 [
                     tiff_reader(keys=["image", "label"], image_col=self.image_col, boundingbox=boundingbox, dilation=dilation, disk_dilation=disk_dilation),
                     Resized(keys=["image", "label"], spatial_size=self.target_size, mode=['area', 'nearest']),
-                    ScaleIntensityRanged(
-                        keys=["image"], a_min=0, a_max=255,
-                        b_min=0.0, b_max=1.0, clip=True,
-                    ),
+                    Lambda(keys="image", func=dynamic_scale),
                     MapLabelValued(["label"],
                                     self.class_values,
                                     list(range(len(self.class_values)))),
@@ -162,9 +174,7 @@ class ImageDataset(Dataset):
                 [
                     tiff_reader(keys=["image", "label"], image_col=self.image_col, boundingbox=boundingbox, dilation=dilation, disk_dilation=disk_dilation),
                     Resized(keys=["image", "label"], spatial_size=self.target_size, mode=['area', 'nearest']),
-                    ScaleIntensityRanged(
-                        keys=["image"], a_min=0, a_max=255,
-                        b_min=0.0, b_max=1.0, clip=True),
+                    Lambda(keys="image", func=dynamic_scale),
                     RandFlipd(
                         keys=['image', 'label'],
                         prob=0.5,
@@ -207,20 +217,28 @@ class PredDataset2D(Dataset):
         return len(self.data_file)
 
     def __getitem__(self, idx):
+        
+        img_name = self.data_file[idx]
+        img_path = os.path.join(self.pred_data_dir, img_name)
+        # img_path = self.data_file[idx]
+        img = np.array(Image.open(img_path))
+        if img.ndim == 4 and img.shape[-1] <= 4:  # If shape is (h, w, d, c) assuming there are maximum 4 channels or modalities 
+            img = np.transpose(img, (3, 0, 1, 2))  # Move channel to the first position
+        elif img.ndim == 3 and img.shape[-1] <= 4:  # If shape is (h, w, c)
+            img = np.transpose(img, (2, 0, 1))  # Move channel to the first position
+        else:
+            raise ValueError(f"Unexpected image shape: {img.shape}, channel dimension should be last and image should be either 2D or 3D")
+        
+        a_min, a_max = img.min(), img.max()
         transform = Compose(
             [
-                ScaleIntensityRange(a_min=0, a_max=255,
+                ScaleIntensityRange(a_min=a_min, a_max=a_max,
                                     b_min=0.0, b_max=1.0, clip=True,
                                     ),
                 EnsureType()
             ]
         )
-        img_name = self.data_file[idx]
-        img_path = os.path.join(self.pred_data_dir, img_name)
-        # img_path = self.data_file[idx]
-        img = np.array(Image.open(img_path))[..., :3]
-        img = transform(np.transpose(img, (2, 0, 1)))
-        
+        img = transform(img)
         if self.boundingbox:
             img = extract_largest_component_bbox_image(img, predict=True)
         return (img, img_path)
