@@ -113,6 +113,7 @@ def dynamic_scale(image):
         b_max=1.0,
         clip=True,
     )
+    print(image.max())
     return transform({"image": image})["image"]
 
 class ImageDataset(Dataset):
@@ -174,7 +175,7 @@ class ImageDataset(Dataset):
                 [
                     tiff_reader(keys=["image", "label"], image_col=self.image_col, boundingbox=boundingbox, dilation=dilation, disk_dilation=disk_dilation),
                     Resized(keys=["image", "label"], spatial_size=self.target_size, mode=['area', 'nearest']),
-                    Lambda(keys="image", func=dynamic_scale),
+                    Lambda(keys=["image"], func=dynamic_scale),
                     RandFlipd(
                         keys=['image', 'label'],
                         prob=0.5,
