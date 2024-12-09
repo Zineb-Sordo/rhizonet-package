@@ -83,9 +83,12 @@ class tiff_reader(MapTransform):
                 if key == "image":
                     if self.image_col == 'cieLAB':
                         data[key] = rgb2lab(io.imread(data_dict[key]))  # cieLAB rep
+                        data[key] = dynamic_scale(data[key])
                     else:
                         # data[key] = np.transpose(np.array(Image.open(data_dict[key]))[..., :3], (2, 0, 1))
                         data[key] = np.array(Image.open(data_dict[key]))
+                        data[key] = dynamic_scale(data[key])
+
                         if data[key].ndim == 4 and data[key].shape[-1] <= 4:  # If shape is (h, w, d, c) assuming there are maximum 4 channels or modalities 
                             data[key] = np.transpose(data[key], (3, 0, 1, 2))  # Move channel to the first position
                         elif data[key].ndim == 3 and data[key].shape[-1] <= 4:  # If shape is (h, w, c)
@@ -105,8 +108,7 @@ class tiff_reader(MapTransform):
 # Dynamic scaling logic
 def dynamic_scale(image):
     a_min, a_max = image.min(), image.max()
-    transform = ScaleIntensityRanged(
-        keys=["image"],
+    transform = ScaleIntensityRange(
         a_min=a_min,
         a_max=a_max,
         b_min=0.0,
@@ -114,7 +116,7 @@ def dynamic_scale(image):
         clip=True,
     )
     print(image.max())
-    return transform({"image": image})["image"]
+    return image
 
 class ImageDataset(Dataset):
     def __init__(self, data_fnames, label_fnames, args, training=False, prediction=False):
@@ -160,7 +162,6 @@ class ImageDataset(Dataset):
                 [
                     tiff_reader(keys=["image", "label"], image_col=self.image_col, boundingbox=boundingbox, dilation=dilation, disk_dilation=disk_dilation),
                     Resized(keys=["image", "label"], spatial_size=self.target_size, mode=['area', 'nearest']),
-                    Lambda(func=dynamic_scale),
                     MapLabelValued(["label"],
                                     self.class_values,
                                     list(range(len(self.class_values)))),
@@ -175,7 +176,6 @@ class ImageDataset(Dataset):
                 [
                     tiff_reader(keys=["image", "label"], image_col=self.image_col, boundingbox=boundingbox, dilation=dilation, disk_dilation=disk_dilation),
                     Resized(keys=["image", "label"], spatial_size=self.target_size, mode=['area', 'nearest']),
-                    Lambda(func=dynamic_scale),
                     RandFlipd(
                         keys=['image', 'label'],
                         prob=0.5,
