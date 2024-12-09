@@ -115,7 +115,8 @@ def dynamic_scale(image):
         b_max=1.0,
         clip=True,
     )
-    print(image.max())
+    if image.max() > 255:
+        print(image.max())
     return image
 
 class ImageDataset(Dataset):
