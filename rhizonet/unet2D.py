@@ -345,7 +345,7 @@ class Unet2D(pl.LightningModule):
     @staticmethod
     def add_args(parser):
         parser.add_argument("--num_classes", type=int, default=3, help="number of segmentation classes to predict")
-        parser.add_argument("--input_channels", type=int, default=1,
+        parser.add_argument("--input_channels", type=int, default=3,
                             help="number of input channels (1 for grayscale, 3 for RGB)")
         parser.add_argument("--background_index", type=int, default=0, help="background index")
         parser.add_argument("--pred_patch_size", type=int, default=(64, 64),
