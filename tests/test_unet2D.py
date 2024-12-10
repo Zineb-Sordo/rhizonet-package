@@ -64,7 +64,7 @@ mock_image = np.random.randint(0, 255, (128, 128, 3), dtype=np.uint8) # RGB imag
 mock_label = np.random.randint(0, 2, (128, 128), dtype=np.uint8) # Binary label
 
 @patch("io.imread", side_effect=lambda x: mock_image if "image" in x else mock_label)
-@patch("dilation", side_effect=lambda x, s: x)
+@patch("skimage.morphology.dilation", side_effect=lambda x,s: x)
 @patch("your_module.extract_largest_component_bbox_image", side_effect=lambda img, lab: (img, lab))
 def test_tiff_reader(mock_imread, mock_dilation, mock_bbox):
 

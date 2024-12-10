@@ -67,13 +67,14 @@ class tiff_reader(MapTransform):
     """
     Custom TIFF reader to preprocess and apply optional contrast or bounding box extraction.
     """
-    def __init__(self, image_col=None, boundingbox=False, dilation=True, disk_dilation=3, keys=["image", "label"], *args, **kwargs):
+    def __init__(self, image_col=None, intput_channels=3, boundingbox=False, dilation=True, disk_dilation=3, keys=["image", "label"], *args, **kwargs):
         super().__init__(self, keys, *args, **kwargs)
         self.keys = keys
         self.image_col = image_col
         self.boundingbox = boundingbox
         self.dilation = dilation
         self.dik_dilation = disk_dilation
+        self.input_channels = self.input_channels
 
     def __call__(self, data_dict):
 
@@ -81,6 +82,7 @@ class tiff_reader(MapTransform):
         for key in self.keys:
             if key in data_dict:
                 if key == "image":
+                    # if self.input_shape != img.shape[-1]
                     if self.image_col == 'cieLAB':
                         data[key] = rgb2lab(io.imread(data_dict[key]))  # cieLAB rep
                         data[key] = dynamic_scale(data[key])
@@ -100,6 +102,7 @@ class tiff_reader(MapTransform):
                     if self.dilation:
                         data[key] = dilation(data['label'], disk(self.disk_dilation))
                     data[key] = np.expand_dims(data[key], axis=0)
+        
         if self.boundingbox:
             data['image'], data['label'] = extract_largest_component_bbox_image(img=data['image'], lab=data['label'])
         return data
@@ -224,6 +227,7 @@ class PredDataset2D(Dataset):
         img_path = os.path.join(self.pred_data_dir, img_name)
         # img_path = self.data_file[idx]
         img = np.array(Image.open(img_path))
+        img = dynamic_scale(img)
         if img.ndim == 4 and img.shape[-1] <= 4:  # If shape is (h, w, d, c) assuming there are maximum 4 channels or modalities 
             img = np.transpose(img, (3, 0, 1, 2))  # Move channel to the first position
         elif img.ndim == 3 and img.shape[-1] <= 4:  # If shape is (h, w, c)
@@ -231,16 +235,13 @@ class PredDataset2D(Dataset):
         else:
             raise ValueError(f"Unexpected image shape: {img.shape}, channel dimension should be last and image should be either 2D or 3D")
         
-        a_min, a_max = img.min(), img.max()
         transform = Compose(
             [
-                ScaleIntensityRange(a_min=a_min, a_max=a_max,
-                                    b_min=0.0, b_max=1.0, clip=True,
-                                    ),
                 EnsureType()
             ]
         )
         img = transform(img)
+
         if self.boundingbox:
             img = extract_largest_component_bbox_image(img, predict=True)
         return (img, img_path)
@@ -342,6 +343,8 @@ class Unet2D(pl.LightningModule):
                 norm_name='batch'
                 # norm_name = ('group', {"num_groups": 3, "affine": True})
             )
+        else:
+            raise AttributeError ("Only 2 possibles models can be applied, either resnet or swin models")
         self.has_executed = False
 
     @staticmethod
@@ -352,7 +355,7 @@ class Unet2D(pl.LightningModule):
         parser.add_argument("--background_index", type=int, default=0, help="background index")
         parser.add_argument("--pred_patch_size", type=int, default=(64, 64),
                             help="spatial size of rolling window prediction patch")
-        parser.add_argument("--batch_size", type=int, default=4, help="dataloader batch size")
+        parser.add_argument("--batch_size", type=int, default=1, help="dataloader batch size")
         parser.add_argument("--lr", type=int, default=3e-4, help="Adam learning rate")
         parser.add_argument("--num_workers", type=int, default=4, help="number of dataloader workers (cpus)")
         return parser
@@ -443,21 +446,22 @@ class Unet2D(pl.LightningModule):
         batch_logs = {"loss": loss,
                       "logits": logits,
                       "labels": labels}
-        to_pil = ToPILImage()
-        if batch_idx % 100 == 0:
-            x, y = images[:20], logits[:20]
-            gridx = torchvision.utils.make_grid(x, nrow=5)
+        if not self.has_executed:
+            to_pil = ToPILImage()
+            if batch_idx % 100 == 0:
+                x, y = images[:20], logits[:20]
+                gridx = torchvision.utils.make_grid(x, nrow=5)
 
-            # Convert the grid to a PIL image
-            self.logger.log_image(key="training_img", images=[to_pil(gridx)]) # Wandb Logger
-            preds = torch.argmax(y, dim=1).byte().squeeze(1)
-            preds = (preds * 255).byte()
+                # Convert the grid to a PIL image
+                self.logger.log_image(key="training_img", images=[to_pil(gridx)]) # Wandb Logger
+                preds = torch.argmax(y, dim=1).byte().squeeze(1)
+                preds = (preds * 255).byte()
 
 
-            y = MapImage(preds, self.hparams.class_values)
-            
-            gridy = torchvision.utils.make_grid(y.view(y.shape[0], 1, y.shape[1], y.shape[2]), nrow=5)
-            self.logger.log_image(key="prediction_imgs", images=[to_pil(gridy)]) # Wandb Logger
+                y = MapImage(preds, self.hparams.class_values)
+                
+                gridy = torchvision.utils.make_grid(y.view(y.shape[0], 1, y.shape[1], y.shape[2]), nrow=5)
+                self.logger.log_image(key="prediction_imgs", images=[to_pil(gridy)]) # Wandb Logger
 
         if torch.cuda.is_available():
             self.cnfmat(labeled_logits, labels[labeled_ind])
