@@ -43,7 +43,7 @@ try:
     from .unet2D import Unet2D, PredDataset2D, ImageDataset, tiff_reader, dynamic_scale
 except ImportError:
     from utils import MapImage, createBinaryAnnotation, extract_largest_component_bbox_image
-    from unet2D import Unet2D, PredDataset2D, ImageDataset, tiff_reader
+    from unet2D import Unet2D, PredDataset2D, ImageDataset, tiff_reader, dynamic_scale
 
 
 def _parse_training_variables(argparse_args) -> Dict:
