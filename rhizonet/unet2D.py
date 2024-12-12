@@ -89,14 +89,13 @@ class tiff_reader(MapTransform):
     """
     Custom TIFF reader to preprocess and apply optional contrast or bounding box extraction.
     """
-    def __init__(self, image_col=None, intput_channels=3, boundingbox=False, dilation=True, disk_dilation=3, keys=["image", "label"], *args, **kwargs):
+    def __init__(self, image_col=None, boundingbox=False, dilation=True, disk_dilation=3, keys=["image", "label"], *args, **kwargs):
         super().__init__(self, keys, *args, **kwargs)
         self.keys = keys
         self.image_col = image_col
         self.boundingbox = boundingbox
         self.dilation = dilation
-        self.dik_dilation = disk_dilation
-        self.input_channels = self.input_channels
+        self.disk_dilation = disk_dilation
 
     def __call__(self, data_dict):
 
