@@ -65,7 +65,7 @@ mock_label = np.random.randint(0, 2, (128, 128), dtype=np.uint8) # Binary label
 
 @patch("io.imread", side_effect=lambda x: mock_image if "image" in x else mock_label)
 @patch("skimage.morphology.dilation", side_effect=lambda x,s: x)
-@patch("your_module.extract_largest_component_bbox_image", side_effect=lambda img, lab: (img, lab))
+@patch("extract_largest_component_bbox_image", side_effect=lambda img, lab: (img, lab))
 def test_tiff_reader(mock_imread, mock_dilation, mock_bbox):
 
     data_dict = {
@@ -129,5 +129,7 @@ def test_transforms_validation(mock_args):
     assert "ScaleIntensityRanged" in str(transforms.transforms)
 
 
+if __name__ == "__main__":
+    pytest.main(["-v", __file__])
 
 

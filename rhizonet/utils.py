@@ -107,7 +107,7 @@ def extract_largest_component_bbox_image(img: Union[np.ndarray, torch.Tensor],
 
             # Applying the mask without cropping out the ROI 
             new_image[..., min_row:max_row, min_col:max_col] = cropped_image * filled_largest_component_mask[min_row:max_row, min_col:max_col]
-            return torch.Tensor(new_image).to("cuda") 
+            return torch.Tensor(new_image).to(torch.device("cuda" if torch.cuda.is_available() else "cpu")) 
         else:
             # Create a new image with the cropped content
             new_image = np.zeros_like(cropped_image)

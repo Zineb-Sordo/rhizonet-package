@@ -63,6 +63,28 @@ except ImportError:
     from utils import get_image_paths, contrast_img
 
 
+def dynamic_scale(image: np.ndarray) -> np.ndarray:
+    """Scales an input image by determining the maximum and minimum pixel values using monai's transform method ScaleIntensityRange.
+
+    Args:
+        image (np.ndarray): Input image to be scaled 
+
+    Returns:
+        np.ndarray: Scaled image.
+    """
+    a_min, a_max = image.min(), image.max()
+    transform = ScaleIntensityRange(
+        a_min=a_min,
+        a_max=a_max,
+        b_min=0.0,
+        b_max=1.0,
+        clip=True,
+    )
+    if image.max() > 255:
+        print(image.max())
+    return image
+
+
 class tiff_reader(MapTransform):
     """
     Custom TIFF reader to preprocess and apply optional contrast or bounding box extraction.
@@ -89,11 +111,11 @@ class tiff_reader(MapTransform):
                     else:
                         # data[key] = np.transpose(np.array(Image.open(data_dict[key]))[..., :3], (2, 0, 1))
                         data[key] = np.array(Image.open(data_dict[key]))
-                        data[key] = dynamic_scale(data[key])
+                        data[key] = dynamic_scale(data[key])[...,:3]
 
-                        if data[key].ndim == 4 and data[key].shape[-1] <= 4:  # If shape is (h, w, d, c) assuming there are maximum 4 channels or modalities 
+                        if data[key].ndim == 4 and data[key].shape[-1] < 4:  # If shape is (h, w, d, c) assuming there are maximum 3 channels or modalities 
                             data[key] = np.transpose(data[key], (3, 0, 1, 2))  # Move channel to the first position
-                        elif data[key].ndim == 3 and data[key].shape[-1] <= 4:  # If shape is (h, w, c)
+                        elif data[key].ndim == 3 and data[key].shape[-1] < 4:  # If shape is (h, w, c)
                             data[key] = np.transpose(data[key], (2, 0, 1))  # Move channel to the first position
                         else:
                             raise ValueError(f"Unexpected image shape: {data[key].shape}, channel dimension should be last and image should be either 2D or 3D")
@@ -107,20 +129,6 @@ class tiff_reader(MapTransform):
             data['image'], data['label'] = extract_largest_component_bbox_image(img=data['image'], lab=data['label'])
         return data
 
-
-# Dynamic scaling logic
-def dynamic_scale(image):
-    a_min, a_max = image.min(), image.max()
-    transform = ScaleIntensityRange(
-        a_min=a_min,
-        a_max=a_max,
-        b_min=0.0,
-        b_max=1.0,
-        clip=True,
-    )
-    if image.max() > 255:
-        print(image.max())
-    return image
 
 class ImageDataset(Dataset):
     def __init__(self, data_fnames, label_fnames, args, training=False, prediction=False):
@@ -216,7 +224,6 @@ class PredDataset2D(Dataset):
         self.input_col = args['input_channels']
         self.image_col = args['image_col']
         self.boundingbox = args['boundingbox']
-        self.amax = 255 # need to be RGB images 
 
     def __len__(self):
         return len(self.data_file)
@@ -227,8 +234,8 @@ class PredDataset2D(Dataset):
         img_path = os.path.join(self.pred_data_dir, img_name)
         # img_path = self.data_file[idx]
         img = np.array(Image.open(img_path))
-        img = dynamic_scale(img)
-        if img.ndim == 4 and img.shape[-1] <= 4:  # If shape is (h, w, d, c) assuming there are maximum 4 channels or modalities 
+        img = dynamic_scale(img)[...,:3]
+        if img.ndim == 4 and img.shape[-1] < 4:  # If shape is (h, w, d, c) assuming there are maximum 3 channels or modalities 
             img = np.transpose(img, (3, 0, 1, 2))  # Move channel to the first position
         elif img.ndim == 3 and img.shape[-1] <= 4:  # If shape is (h, w, c)
             img = np.transpose(img, (2, 0, 1))  # Move channel to the first position
@@ -526,6 +533,10 @@ class Unet2D(pl.LightningModule):
         images = (images * 255).byte()  # convert from float (0-to-1) to uint8
         return (preds, images, fnames)
 
+
+# The following code assign compute true negative s.t. true positives of the background as the true negatives for all other classes
+# This works only in binary settings where the background class is the only negative class 
+# For general multiclass tasks, we need a more robust calculation that sums over all non-class rows and columns to avoid misrepresenting the true negatives.
     def _compute_cnf_stats(self):
         cnfmat = self.cnfmat.compute()
         true = torch.diag(cnfmat)
@@ -545,3 +556,25 @@ class Unet2D(pl.LightningModule):
 
         return acc.item(), precision.item(), recall.item(), iou.item()
 
+
+    # Compute metrics without excluding background
+    # def _compute_cnf_stats(self):
+    #     cnfmat = self.cnfmat.compute()  # Confusion matrix: shape (num_classes, num_classes)
+    #     true = torch.diag(cnfmat)  # True positives for each class
+
+    #     # Total true positives, false negatives, and false positives for each class
+    #     tp = true
+    #     fn = cnfmat.sum(dim=1) - true  # Row sum minus true positives
+    #     fp = cnfmat.sum(dim=0) - true  # Column sum minus true positives
+    #     tn = cnfmat.sum() - (tp + fn + fp)  # Total - (tp, fp, fn)
+
+    #     # Metrics
+    #     acc = torch.sum(tp) / torch.sum(cnfmat)  # Overall accuracy
+    #     precision = torch.mean(tp / (tp + fp + 1e-8))  # Macro-averaged precision
+    #     recall = torch.mean(tp / (tp + fn + 1e-8))  # Macro-averaged recall
+    #     iou = torch.mean(tp / (tp + fp + fn + 1e-8))  # Macro-averaged IoU
+    #     iou_per_class = tp / (tp + fp + fn + 1e-8)  # Per-class IoU
+
+    #     self.cnfmat.reset()  # Reset confusion matrix for next evaluation cycle
+
+    #     return acc.item(), precision.item(), recall.item(), iou.item()

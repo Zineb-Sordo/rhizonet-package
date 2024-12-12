@@ -82,3 +82,7 @@ def test_get_biomass():
     binary_img[20:40, 30:50] = 1
     biomass = get_biomass(binary_img)
     assert biomass == 400  # Area of 20x20 pixels = 400
+
+
+if __name__ == "__main__":
+    pytest.main(["-v", __file__])

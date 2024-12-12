@@ -21,7 +21,6 @@ except ImportError:
     from utils import createBinaryAnnotation, MapImage
 
 
-
 def calculate_all_metrics(pred: torch.Tensor, 
                          target: torch.Tensor,  
                          task: str = 'binary', 
@@ -60,9 +59,7 @@ def calculate_all_metrics(pred: torch.Tensor,
     recall = torch.sum(tp) / torch.sum(tp + fn)
     iou = torch.sum(tp) / (torch.sum(cnfmat) - tn)
     iou_per_class = tp / (tp + fp + fn)
-
     dice = 2*torch.sum(tp) / (torch.sum(cnfmat) - tn + tp) 
-
     return acc.item(), precision.item(), recall.item(), iou.item(), dice.item()
 
 
@@ -87,17 +84,20 @@ def evaluate(pred_path: str, label_path: str, log_dir: str, task: str) -> None:
 
     # if number of classes in the prediction is 2 then binary else multiclass with number of classes = len(labels)
     for pred_path, lab_path in zip(pred_list, label_list):
-        pred = io.imread(pred_path)
-        lab = io.imread(lab_path)
+        pred = io.imread(pred_path) # Predicted image 
+        lab = io.imread(lab_path) # Groundtruth image
 
         # Check if prediction is scaled by 255 for visualization 
-        if np.min(pred) >= 0 and np.max(pred) <= 255:
+        if np.min(pred) >= 0 and np.max(pred) == 255:
             pred = torch.Tensor(pred/255.0)
 
-        labels = np.unique(lab)
+        labels = np.unique(pred)
         num_classes = len(labels)
-        lab = torch.Tensor(MapImage(lab, labels))
-        num_classes = len(labels)
+
+        pred = torch.tensor(pred)
+        lab = torch.tensor(lab) 
+        filename = os.path.basename(pred_path)
+
         dict_metrics[filename] = {}
         acc, prec, rec, iou, dice = calculate_all_metrics(pred, lab, task=task, num_classes=num_classes)
         dict_metrics[filename]['accuracy'] = acc
@@ -107,12 +107,9 @@ def evaluate(pred_path: str, label_path: str, log_dir: str, task: str) -> None:
         dict_metrics[filename]['Dice'] = dice
 
                                                                                                                                                                                            
-
     # print("Metrics: \n {}".format(dict_metrics))
     with open(os.path.join(log_dir, 'metrics.json'), 'w') as f:
         json.dump(dict_metrics, f)
-
-        filename = os.path.basename(pred)
         
             
 if __name__ == '__main__':

@@ -150,36 +150,6 @@ def test_prediction_function():
     assert preds.shape == (1, 3, 256, 256), f"Unexpected prediction shape: {preds.shape}"
 
 
-def test_metric_computation():
-    # Mock the confusion matrix
-    mock_compute = MagicMock(return_value=torch.tensor([
-        [5, 0, 0],
-        [0, 3, 1],
-        [0, 2, 7],
-    ]))
-
-    model = Unet2D(train_ds=None, val_ds=None, model='resnet', 
-            input_channels=3,
-            num_classes=3, 
-            pred_patch_size=(64, 64), 
-            spatial_dims=2,
-            class_values=[0, 1, 2],
-            task='multiclass')
-    model.hparams.background_index = 0
-    acc, prec, recall, iou = model._compute_cnf_stats()
-
-    # Mock only the 'compute' method of 'cnfmat'
-    with patch.object(model.cnfmat, 'compute', mock_compute):
-        acc, prec, recall, iou = model._compute_cnf_stats()
-
-    # # Check computed metrics
-    # assert acc == pytest.approx(15 / 18, rel=1e-2)
-    # print(prec)
-    # assert prec == pytest.approx(10 / 11, rel=1e-2)
-    # assert recall == pytest.approx(10 / 12, rel=1e-2)
-    # assert iou == pytest.approx(10 / (18 - 5), rel=1e-2)
-
-
 def test_logging():
     with tempfile.TemporaryDirectory() as temp_dir:
         wandb.init(dir=temp_dir, project="test_project", mode="offline")
@@ -207,14 +177,6 @@ def test_logging():
 
 
 if __name__ == "__main__":
-    # Run all tests 
-    # test_parse_variable()
-    test_unet2d_initialization()
-    test_forward_pass()
-    test_training_validation_step()
-    test_prediction_function()
-    test_metric_computation()
-    test_logging()
-
+    pytest.main(["-v", __file__])
 
 

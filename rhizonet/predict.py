@@ -40,7 +40,7 @@ from collections.abc import Callable
 # Import parent modules 
 try:
     from .utils import MapImage, createBinaryAnnotation, extract_largest_component_bbox_image
-    from .unet2D import Unet2D, PredDataset2D, ImageDataset, tiff_reader
+    from .unet2D import Unet2D, PredDataset2D, ImageDataset, tiff_reader, dynamic_scale
 except ImportError:
     from utils import MapImage, createBinaryAnnotation, extract_largest_component_bbox_image
     from unet2D import Unet2D, PredDataset2D, ImageDataset, tiff_reader
@@ -82,14 +82,19 @@ def transform_image(img_path:str) -> Tuple[np.ndarray, str]:
     """
     transform = Compose(
         [
-            ScaleIntensityRange(a_min=0, a_max=255,
-                                b_min=0.0, b_max=1.0, clip=True,
-                                ),
             EnsureType()
         ]
     )
     img = np.array(Image.open(img_path))[...,:3]
-    img = transform(np.transpose(img, (2, 0, 1)))
+    img = dynamic_scale(img)
+    if img.ndim == 4 and img.shape[-1] <= 4:  # If shape is (h, w, d, c) assuming there are maximum 4 channels or modalities 
+        img = np.transpose(img, (3, 0, 1, 2))  # Move channel to the first position
+    elif img.ndim == 3 and img.shape[-1] < 4:  # If shape is (h, w, c)
+        img = np.transpose(img, (2, 0, 1))  # Move channel to the first position
+    else:
+        raise ValueError(f"Unexpected image shape: {img.shape}, channel dimension should be last and image should be either 2D or 3D")
+        
+    img = transform(img)
     return img, img_path
 
 
