@@ -133,7 +133,8 @@ def test_training_validation_step():
         assert "loss" in val_logs, "Validation step should log loss"
 
         os.remove("train_tensor.pt")
-        
+        os.remove("network_graph.png")
+
 
 def test_prediction_function():
     train_ds = MagicMock()
