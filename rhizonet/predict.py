@@ -85,12 +85,17 @@ def transform_image(img_path:str) -> Tuple[np.ndarray, str]:
             EnsureType()
         ]
     )
-    img = np.array(Image.open(img_path))[...,:3]
-    img = dynamic_scale(img)
-    if img.ndim == 4 and img.shape[-1] <= 4:  # If shape is (h, w, d, c) assuming there are maximum 4 channels or modalities 
+    img = np.array(Image.open(img_path))
+    if img.ndim == 4 and img.shape[-1] < 4:  # If shape is (h, w, d, c) assuming there are maximum 4 channels or modalities 
         img = np.transpose(img, (3, 0, 1, 2))  # Move channel to the first position
+        img = dynamic_scale(img)[:3, ...]
     elif img.ndim == 3 and img.shape[-1] < 4:  # If shape is (h, w, c)
         img = np.transpose(img, (2, 0, 1))  # Move channel to the first position
+        img = dynamic_scale(img)[:3, ...]
+    elif img.ndim == 2: # if no batch dimension then create one
+        img = np.expand_dims(img, axis=-1)
+        img = dynamic_scale(img)
+        img = np.transpose(img, (2, 0, 1))
     else:
         raise ValueError(f"Unexpected image shape: {img.shape}, channel dimension should be last and image should be either 2D or 3D")
         
@@ -137,8 +142,10 @@ def predict_step(
             - casting the tensor to torch.uint8 (byte) and scaling to 255 for visualization
     """
     image, _ = transform_image(image_path)
-    cropped_image = extract_largest_component_bbox_image(image.unsqueeze(0), lab=None,  predict=True)
-    logits = pred_function(cropped_image, model, pred_patch_size)
+    cropped_image = extract_largest_component_bbox_image(image.unsqueeze(0), lab=None)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    tensor_cropped_image = torch.tensor(cropped_image).to(device)
+    logits = pred_function(tensor_cropped_image.float(), model, pred_patch_size)
     pred = torch.argmax(logits, dim=1).byte().squeeze(dim=1)
     pred = (pred * 255).byte()
     return pred
@@ -195,7 +202,6 @@ def predict_model(args: Dict):
                 for file in tqdm(lst_files):
                     if not file.startswith("."):
                         print("Predicting for {}".format(file))
-
                         file_path = os.path.join(pred_data_dir, ecofab, file)
                         get_prediction(file_path, unet, args['pred_patch_size'], os.path.join(save_path, ecofab), labels)
             else:

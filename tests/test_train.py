@@ -20,7 +20,7 @@ def test_parse_variable():
 
     parser = ArgumentParser(conflict_handler='resolve')
     parser.add_argument("--config_file", type=str,
-                        default="./data/setup_files/setup-unet2d.json")
+                        default="../data/setup_files/setup-unet2d.json")
     argparse_args = parser.parse_args()
     args, dataset_args, model_args = _parse_training_variables(argparse_args)
 
@@ -132,6 +132,8 @@ def test_training_validation_step():
         val_logs = model.validation_step(batch, batch_idx=0)
         assert "loss" in val_logs, "Validation step should log loss"
 
+        os.remove("train_tensor.pt")
+        
 
 def test_prediction_function():
     train_ds = MagicMock()

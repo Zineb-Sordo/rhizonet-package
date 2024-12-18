@@ -12,8 +12,7 @@ from monai.transforms import MapLabelValued
 
 
 def extract_largest_component_bbox_image(img: Union[np.ndarray, torch.Tensor], 
-                                         lab: Union[np.ndarray, torch.Tensor] = None, 
-                                         predict: bool = False) -> Union[np.ndarray, torch.Tensor, Tuple[Union[np.ndarray, torch.Tensor], str]]:
+                                         lab: Union[np.ndarray, torch.Tensor] = None,) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     """
     Extract the largest connected component (LCC) of the given image and get the bounding box associated with this LCC. Depending on the input parameters, it can either:
 
@@ -29,15 +28,14 @@ def extract_largest_component_bbox_image(img: Union[np.ndarray, torch.Tensor],
             - Must not be None; if None, the function raises a ValueError.
         lab (Union[numpy.ndarray, torch.Tensor], optional): 
             The label or annotated image. Defaults to None.
-        predict (bool, optional): 
-            A flag indicating whether the function is used for prediction. Defaults to False.
+
 
     Returns:
-        Union[numpy.ndarray, torch.Tensor, Tuple[Union[numpy.ndarray, torch.Tensor], Union[numpy.ndarray, torch.Tensor]]]: 
+        Union[numpy.ndarray, Tuple[numpy.ndarray, numpy.ndarray]]: 
             - If `lab` is None: Returns the processed image as a NumPy array or PyTorch tensor.
             - If `lab` is provided: Returns a tuple containing:
-                - The processed image (NumPy array or PyTorch tensor).
-                - The processed label image (NumPy array or PyTorch tensor).
+                - The processed image (NumPy array).
+                - The processed label image (NumPy array).
     """
 
     if img is None:
@@ -45,22 +43,13 @@ def extract_largest_component_bbox_image(img: Union[np.ndarray, torch.Tensor],
     elif isinstance(img, np.ndarray):
         print("Processing a NumPy array.")
     elif isinstance(img, torch.Tensor):
-        print("Processing a PyTorch tensor.")
+        print("Processing a PyTorch tensor")
+        img = np.array(img)
     else:
         raise TypeError("Input must be a numpy.ndarray, torch.Tensor, or None.")
-
-    # Load and preprocess the image
-    # if predict:
-    #     img = img.cpu().numpy()
-    #     image = img[0, 2, ...]
-    # else:
-    #     image = img[2, ...]
-
-    if img.device.type == "cuda":
-        img = img.cpu().numpy()
     
     # Remove dimension if there is a batch dim and format is (B, C, H, W)
-    image = img.squeeze(0)[2, ...]
+    image = img.squeeze()[2, ...]
 
     # Get the largest connected component
     image = ndi.gaussian_filter(image, sigma=2)
@@ -91,31 +80,20 @@ def extract_largest_component_bbox_image(img: Union[np.ndarray, torch.Tensor],
     # Crop the ORIGINAL image to the bounding box dimensions
     cropped_image = img[..., min_row:max_row, min_col:max_col]
 
+    # Create a new image with the cropped content but keeping input image shape
+    new_image = np.zeros_like(img)
+
+    # Applying the mask without cropping out the ROI 
+    new_image[..., min_row:max_row, min_col:max_col] = cropped_image * filled_largest_component_mask[min_row:max_row, min_col:max_col]
+
     # Processing the label image
     if lab is not None:
         cropped_label = lab[..., min_row:max_row, min_col:max_col]
-        new_label = np.zeros_like(cropped_label)
-        new_label[..., filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_label[...,
-        filled_largest_component_mask[min_row:max_row, min_col:max_col]]
+        new_label = np.zeros_like(lab)
+        new_label[..., min_row:max_row, min_col:max_col] = cropped_label * filled_largest_component_mask[min_row:max_row, min_col:max_col]
         return new_image, new_label
     
-    else:
-
-        if predict:
-            # Create a new image with the cropped content but keeping input image shape
-            new_image = np.zeros_like(img)
-
-            # Applying the mask without cropping out the ROI 
-            new_image[..., min_row:max_row, min_col:max_col] = cropped_image * filled_largest_component_mask[min_row:max_row, min_col:max_col]
-            return torch.Tensor(new_image).to(torch.device("cuda" if torch.cuda.is_available() else "cpu")) 
-        else:
-            # Create a new image with the cropped content
-            new_image = np.zeros_like(cropped_image)
-
-            # Final image/ROI is cropped by applying a boolean mask
-            new_image[..., filled_largest_component_mask[min_row:max_row, min_col:max_col]] = cropped_image[...,
-            filled_largest_component_mask[min_row:max_row, min_col:max_col]]
-            return new_image
+    return new_image
         
 
 def get_weights(

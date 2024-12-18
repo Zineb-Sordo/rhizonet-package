@@ -89,7 +89,7 @@ class tiff_reader(MapTransform):
     """
     Custom TIFF reader to preprocess and apply optional contrast or bounding box extraction.
     """
-    def __init__(self, image_col=None, boundingbox=False, dilation=True, disk_dilation=3, keys=["image", "label"], *args, **kwargs):
+    def __init__(self, image_col=None, boundingbox=True, dilation=True, disk_dilation=3, keys=["image", "label"], *args, **kwargs):
         super().__init__(self, keys, *args, **kwargs)
         self.keys = keys
         self.image_col = image_col
@@ -110,12 +110,14 @@ class tiff_reader(MapTransform):
                     else:
                         # data[key] = np.transpose(np.array(Image.open(data_dict[key]))[..., :3], (2, 0, 1))
                         data[key] = np.array(Image.open(data_dict[key]))
-                        data[key] = dynamic_scale(data[key])[...,:3]
-
                         if data[key].ndim == 4 and data[key].shape[-1] < 4:  # If shape is (h, w, d, c) assuming there are maximum 3 channels or modalities 
                             data[key] = np.transpose(data[key], (3, 0, 1, 2))  # Move channel to the first position
+                            data[key] = dynamic_scale(data[key])[:3, ...]
+
                         elif data[key].ndim == 3 and data[key].shape[-1] < 4:  # If shape is (h, w, c)
                             data[key] = np.transpose(data[key], (2, 0, 1))  # Move channel to the first position
+                            data[key] = dynamic_scale(data[key])[:3, ...]
+                      
                         else:
                             raise ValueError(f"Unexpected image shape: {data[key].shape}, channel dimension should be last and image should be either 2D or 3D")
                 elif key == "label":
@@ -140,7 +142,6 @@ class ImageDataset(Dataset):
             sys.exit(f"size of data and label images are not the same")
         self.Nsamples = len(self.data_fnames)
         self.data_dicts = [{"image": self.data_fnames[i], "label": self.label_fnames[i]} for i in range(self.Nsamples)]
-        self.input_patch_size = io.imread(self.data_fnames[0]).shape
         self.patch_size = args['patch_size']
         self.spatial_dims = len(self.patch_size)
         self.translate_range = args['translate_range']
@@ -233,11 +234,12 @@ class PredDataset2D(Dataset):
         img_path = os.path.join(self.pred_data_dir, img_name)
         # img_path = self.data_file[idx]
         img = np.array(Image.open(img_path))
-        img = dynamic_scale(img)[...,:3]
         if img.ndim == 4 and img.shape[-1] < 4:  # If shape is (h, w, d, c) assuming there are maximum 3 channels or modalities 
             img = np.transpose(img, (3, 0, 1, 2))  # Move channel to the first position
-        elif img.ndim == 3 and img.shape[-1] <= 4:  # If shape is (h, w, c)
+            img = dynamic_scale(img)[...,:3]
+        elif img.ndim == 3 and img.shape[-1] < 4:  # If shape is (h, w, c)
             img = np.transpose(img, (2, 0, 1))  # Move channel to the first position
+            img = dynamic_scale(img)[...,:3]
         else:
             raise ValueError(f"Unexpected image shape: {img.shape}, channel dimension should be last and image should be either 2D or 3D")
         
@@ -249,7 +251,7 @@ class PredDataset2D(Dataset):
         img = transform(img)
 
         if self.boundingbox:
-            img = extract_largest_component_bbox_image(img, predict=True)
+            img = extract_largest_component_bbox_image(img)
         return (img, img_path)
 
 
@@ -524,9 +526,10 @@ class Unet2D(pl.LightningModule):
 
     def predict_step(self, batch, batch_idx):
         images, fnames = batch
-        # logits = self.pred_function(images.squeeze(0))
-        cropped_images = extract_largest_component_bbox_image(images, predict=True)
-        logits = self.pred_function(cropped_images)
+        logits = self.pred_function(images.squeeze(0))
+        # cropped_images = extract_largest_component_bbox_image(images)
+        # tensor_cropped_images = torch.tensor(cropped_images).to("cuda")
+        logits = self.pred_function(logits)
 
         preds = torch.argmax(logits, dim=1).byte().squeeze(dim=1)
         images = (images * 255).byte()  # convert from float (0-to-1) to uint8

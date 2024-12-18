@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from skimage import io
 from PIL import Image
 import pytest
-
+from torchvision.transforms import ToPILImage
 from rhizonet.predict import transform_image, predict_step, get_prediction, predict_model, pred_function
 from rhizonet.unet2D import Unet2D
 
@@ -30,8 +30,10 @@ def test_get_prediction():
     save_path = "test_output"
     os.makedirs(save_path, exist_ok=True)
 
-    test_img = np.random.randint(0, 255, (256, 256, 3), dtype=np.uint8)
-    Image.fromarray(test_img).save(test_file)
+    topil = ToPILImage()
+    test_img = torch.rand(3, 256, 256, dtype=torch.float32)
+    test_img = topil(test_img)
+    test_img.save(test_file)
 
     mock_model = MagicMock()
     mock_model.return_value = torch.randn(1, 3, 128, 128)  # Mock logits output
@@ -44,6 +46,7 @@ def test_get_prediction():
     os.remove(test_file)
     os.remove(saved_file)
     os.rmdir(save_path)
+
 
 
 if __name__ == "__main__":
