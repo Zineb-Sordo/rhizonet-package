@@ -78,7 +78,7 @@ nav:
     - Contributing: contributing.md
     - FAQ: faq.md
     - Changelog: changelog.md
-    - Report Issues: https://github.com/zineb-sordo/rhizonet/issues
+    - Report Issues: https://github.com/zineb-sordo/rhizonet-package/issues
     - Examples:
         - examples/intro.ipynb
     - API Reference:
