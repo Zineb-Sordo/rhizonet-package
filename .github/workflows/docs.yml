@@ -27,5 +27,5 @@ jobs:
             - name: PKG-TEST
               run: |
                   python -m unittest discover tests/
-            - run: mkdocs gh-deploy --force
+            - run: .readthedocs gh-deploy --force
 
